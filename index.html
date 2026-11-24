@@ -1,4 +1,6 @@
+<meta charset="utf-8">
 <title>냥냥 머지</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
 <style>
@@ -8,6 +10,9 @@
     --accent:#ef7d57; --accent-2:#f4b942; --line:#ead6b6; --shadow:rgba(120,80,40,.18);
     --font-display:'Jua', system-ui, sans-serif;
     --font-body:system-ui,-apple-system,'Segoe UI',sans-serif;
+    /* 놀이판 비율 — 폰에서 판을 세로로 늘릴 때 JS가 함께 갱신한다 */
+    --ar: 400 / 560;
+    --arw: 0.714286;   /* = 400/560, 세로 공간에서 가로 폭을 구할 때 쓰는 계수 */
   }
   @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
     --bg:#241c15; --panel:#302519; --fg:#f2e7d6; --muted:#b39c82;
@@ -43,7 +48,7 @@
   .score-card.best .val{ color:var(--accent-2);}
 
   .stage{ position:relative; display:flex; justify-content:center; width:100%; flex:0 1 auto;}
-  .board{ position:relative; width:min(100%, calc((100vh - 298px) * 400 / 560), 586px); aspect-ratio:400/560; height:auto;
+  .board{ position:relative; width:min(100%, calc((100vh - 298px) * var(--arw)), 586px); aspect-ratio:var(--ar); height:auto;
           border-radius:20px; overflow:hidden; box-shadow:0 10px 26px var(--shadow), inset 0 0 0 2px rgba(255,255,255,.04);}
   canvas#game{ display:block; width:100%; height:100%; cursor:pointer;}
 
@@ -78,7 +83,7 @@
   .chain .cell.goal canvas{ width:38px; height:38px;}
   .chain .arr{ color:var(--line); font-size:.7rem; flex:0 0 auto;}
   .hint{ font-size:.66rem; color:var(--muted); text-align:center; width:100%;}
-  @media (max-height:720px){ .chain .hd{display:none} .chain{padding:5px 8px} .board{width:min(100%, calc((100vh - 276px) * 400 / 560), 586px)} }
+  @media (max-height:720px){ .chain .hd{display:none} .chain{padding:5px 8px} .board{width:min(100%, calc((100vh - 276px) * var(--arw)), 586px)} }
 
   /* 아이템 버튼 */
   .items{ display:flex; gap:6px;}
@@ -115,7 +120,7 @@
     .stage{ grid-column:2; grid-row:1; order:0; width:auto;}
     .side{ grid-column:3; grid-row:1; order:1; display:flex; flex-direction:column; gap:10px;
            width:100%; max-width:340px; min-width:0; justify-self:start;}
-    .board{ width:min(calc((100vh - 48px) * 400 / 560), calc(100vw - 430px), 700px); }
+    .board{ width:min(calc((100vh - 48px) * var(--arw)), calc(100vw - 430px), 700px); }
     .side .top{ flex-wrap:wrap; row-gap:6px;}
     .side .controls{ flex-wrap:wrap; row-gap:8px;}
     .chain .hd{ display:block; }
@@ -130,7 +135,8 @@
            padding-right:max(4px, env(safe-area-inset-right,0px));
            padding-block:6px; gap:6px;}
     .stage{ flex:1 1 auto; min-height:0; width:100%;}
-    .board{ width:100%; height:100%; max-width:none; border-radius:16px;}
+    /* JS가 인라인 px로 정확히 덮어쓴다. 아래 값은 JS가 못 돌 때도 비율이 깨지지 않게 하는 안전망 */
+    .board{ width:auto; height:100%; max-width:100%; max-height:100%; aspect-ratio:var(--ar); border-radius:16px;}
     .hint.idle{ display:none;}            /* 아이템 안내가 필요할 때만 보여줌 */
     .chain .hd{ display:none;}
     .chain{ padding:4px 6px;}
@@ -382,25 +388,40 @@
   var cv=document.getElementById('game'), ctx=cv.getContext('2d');
   var W=400, H=560, dpr=1;
   var boardEl=document.querySelector('.board'), stageEl=document.querySelector('.stage');
-  var fillMode=false;   // 세로 폰: 남는 공간에 맞춰 놀이판을 세로로 길게
 
-  // 놀이판 높이(H)를 화면에 맞춰 한 번만 정한다. 가로가 넓은 화면은 기본 560 그대로.
-  (function fitPlayfield(){
-    if(!stageEl || window.innerWidth>=760) return;
+  // 세로 폰 레이아웃인지 '매번' 다시 판단한다. (회전·창 크기 변경에 따라오게)
+  function wantFill(){ return window.innerWidth < 760; }
+
+  // 판 비율을 CSS에도 알려 준다 — 넓은 화면에서 CSS가 판 크기를 정할 때 같은 비율을 쓰도록
+  function syncAR(){
+    var s=document.documentElement.style;
+    s.setProperty('--ar', W+' / '+H);
+    s.setProperty('--arw', String(W/H));
+  }
+
+  // 놀이판 높이(H)를 지금 화면에 맞춰 계산한다(560~900). 넓은 화면은 기본 560.
+  function wantedH(){
+    if(!stageEl || !wantFill()) return 560;
     var r=stageEl.getBoundingClientRect();
-    if(r.width<40 || r.height<40) return;
-    fillMode=true;
-    H=Math.max(560, Math.min(900, Math.round(W * r.height / r.width)));
-  })();
+    if(r.width<40 || r.height<40) return H;
+    return Math.max(560, Math.min(900, Math.round(W * r.height / r.width)));
+  }
+  (function fitPlayfield(){ H=wantedH(); syncAR(); })();
 
-  // 판을 무대 안에 W:H 비율 그대로 최대 크기로 앉힌다(회전해도 안 늘어남)
+  // 판을 무대 안에 W:H 비율 그대로 최대 크기로 앉힌다.
+  // 넓은 화면에서는 인라인 크기를 지워 CSS에 돌려준다 — 안 그러면 무대가 판을 따라가며 계속 줄어든다.
   function layoutBoard(){
-    if(!fillMode || !stageEl || !boardEl) return;
+    if(!stageEl || !boardEl) return;
+    if(!wantFill()){
+      if(boardEl.style.width){ boardEl.style.width=''; boardEl.style.height=''; }
+      return;
+    }
     var r=stageEl.getBoundingClientRect();
     if(r.width<40 || r.height<40) return;
     var k=Math.min(r.width/W, r.height/H);
-    boardEl.style.width=Math.floor(W*k)+'px';
-    boardEl.style.height=Math.floor(H*k)+'px';
+    var nw=Math.floor(W*k)+'px', nh=Math.floor(H*k)+'px';
+    if(boardEl.style.width===nw && boardEl.style.height===nh) return;   // 같은 값이면 건드리지 않음(되먹임 차단)
+    boardEl.style.width=nw; boardEl.style.height=nh;
   }
   function resize(){
     layoutBoard();
@@ -431,18 +452,19 @@
   // 판이 비어 있을 때만 높이(H)까지 다시 잡고, 플레이 중엔 비율만 유지해 안전하게 둔다.
   var playStarted=false;   // 첫 드롭 전까지만 판 높이를 다시 잡는다(플레이 중엔 절대 안 건드림)
   function refit(){
-    if(!fillMode || !stageEl) return;
-    var r=stageEl.getBoundingClientRect();
-    if(r.width<40 || r.height<40) return;
-    var want=Math.max(560, Math.min(900, Math.round(W * r.height / r.width)));
+    if(!stageEl) return;
+    var want=wantedH();
     if(!playStarted && Math.abs(want-H)>4){
-      var k=want/H; H=want;
+      var dy=want-H; H=want; syncAR();
       var all=Composite.allBodies(world).slice(), i, b;
       for(i=0;i<all.length;i++){
         b=all[i];
         if(b.isStatic){ Composite.remove(world, b); }
-        else if(b.isCat){   // 이어하던 냥이들은 새 높이에 맞춰 세로로만 옮긴다
-          Body.setPosition(b, {x:b.position.x, y:Math.min(H-b.circleRadius-2, b.position.y*k)});
+        else if(b.isCat){
+          // 바닥 기준으로 '평행이동'한다. 비례로 줄이면 쌓인 더미가 서로 파고들어
+          // 의도치 않은 연쇄 머지나 즉시 게임오버가 난다.
+          Body.setPosition(b, {x:b.position.x,
+            y:Math.min(H-b.circleRadius-2, b.position.y+dy)});
           Body.setVelocity(b, {x:0, y:0});
         }
       }
@@ -450,7 +472,17 @@
     }
     resize();
   }
-  if(window.ResizeObserver){ try{ new ResizeObserver(refit).observe(stageEl); }catch(e){} }
+  // 글꼴 로딩으로 UI 높이가 변하는 걸 감지한다. 무대(.stage)를 보면 판 크기 변경이
+  // 다시 무대를 바꾸는 되먹임 고리가 생기므로, 판과 무관한 UI 줄만 관찰한다.
+  if(window.ResizeObserver){
+    try{
+      var ro=new ResizeObserver(refit);
+      var watch=[document.querySelector('.controls'), document.querySelector('.chain'),
+                 document.querySelector('.top'), document.querySelector('.subrow')];
+      for(var wi=0; wi<watch.length; wi++) if(watch[wi]) ro.observe(watch[wi]);
+    }catch(e){}
+  }
+  window.addEventListener('resize', refit);
   if(document.fonts && document.fonts.ready){ document.fonts.ready.then(refit)['catch'](function(){}); }
 
   function makeCat(x,y,t){
@@ -788,12 +820,14 @@
       cur=Math.min(4,Math.max(0,d.cur|0)); nxt=Math.min(4,Math.max(0,d.nxt|0));
       if(d.it){ items.remove=Math.max(0,d.it.remove|0); items.swap=Math.max(0,d.it.swap|0); items.promote=Math.max(0,d.it.promote|0); }
       feverGauge=Math.max(0,Math.min(FEVER_NEED-1,d.fg|0));
-      // 다른 기기(판 높이가 다른 화면)에서 저장한 판이면 세로 위치를 비례로 옮긴다
-      var sh=(typeof d.h==='number' && d.h>100)? d.h : 560, yk=H/sh;
+      // 다른 기기(판 높이가 다른 화면)에서 저장한 판이면 바닥 기준으로 통째로 옮긴다.
+      // 비례로 줄이면 쌓인 더미가 서로 파고들어 연쇄 머지·즉시 게임오버가 난다.
+      var sh=(typeof d.h==='number' && d.h>100)? d.h : 560, dy=H-sh;
       for(var i=0;i<d.bs.length;i++){ var e=d.bs[i];
         if(typeof e.t!=='number'||e.t<0||e.t>MAX) continue;
         discover(e.t,true);
-        var ey=Math.min(H-TIERS[e.t].r-2, e.y*yk);
+        // 위로 넘치는 냥이는 억지로 밀어넣지 않는다. 천장이 없으니 화면 위에서 자연히 떨어져 쌓인다.
+        var ey=Math.min(H-TIERS[e.t].r-2, e.y+dy);
         var b=makeCat(e.x,ey,e.t); Body.setAngle(b,e.a||0); if(e.g&&GIFT_NAME[e.g]) b.gift=e.g;
         Composite.add(world,b); }
       discover(cur,true); drawNext(); return true;
