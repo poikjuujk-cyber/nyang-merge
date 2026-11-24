@@ -173,6 +173,17 @@
   ol.rk li.me{ outline:2px solid var(--accent);}
   .rk-status{ font-size:.78rem; color:var(--muted); margin:8px 0 0; text-align:center;}
   .rk-close{ margin-top:12px; width:100%;}
+
+  /* 물리 조정 패널 */
+  .ph-row{ margin-bottom:12px;}
+  .ph-row .lab{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:3px;}
+  .ph-row .nm{ font-weight:700; font-size:.86rem;}
+  .ph-row .vl{ font-family:var(--font-display); color:var(--accent); font-variant-numeric:tabular-nums;}
+  .ph-row .ds{ font-size:.68rem; color:var(--muted); margin-top:2px;}
+  .ph-row input[type=range]{ width:100%; accent-color:var(--accent); margin:0;}
+  .ph-btns{ display:flex; gap:8px; margin-top:4px;}
+  .ph-btns .btn{ flex:1;}
+  .ph-note{ font-size:.72rem; color:var(--muted); margin:0 0 10px; line-height:1.45;}
 </style>
 
 <div class="wrap">
@@ -205,6 +216,7 @@
     <div class="feverbar" id="feverBar" aria-label="피버 게이지"><div class="fv-fill" id="fvFill"></div><span class="fv-txt" id="fvTxt">피버 게이지 0 / 10</span></div>
     <div class="minis">
       <button class="icon" id="rankBtn" title="랭킹" aria-label="랭킹 보기">🏆</button>
+      <button class="icon" id="physBtn" title="물리 조정" aria-label="물리 조정">⚙️</button>
       <button class="icon" id="bgm" title="배경음악 켜기/끄기" aria-label="배경음악 켜기 끄기">🎵</button>
       <button class="icon" id="mute" title="효과음 켜기/끄기" aria-label="효과음 켜기 끄기">🔊</button>
     </div>
@@ -243,6 +255,19 @@
     <ol class="rk" id="rkList"></ol>
     <div class="rk-status" id="rkStatus">불러오는 중…</div>
     <button class="btn rk-close" id="rankClose">닫기</button>
+  </div>
+</div>
+
+<div class="rankwrap" id="physWrap" hidden>
+  <div class="rankcard">
+    <h3>⚙️ 물리 조정</h3>
+    <p class="ph-note">슬라이더를 움직이면 <b>바로 적용</b>돼요. 판에 있는 냥이한테도 즉시 반영되니
+      조금씩 바꿔가며 제일 재밌는 느낌을 찾아보세요. 설정은 저장됩니다.</p>
+    <div id="physRows"></div>
+    <div class="ph-btns">
+      <button class="btn" id="physReset">기본값</button>
+      <button class="btn" id="physClose">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -435,7 +460,20 @@
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 250); });
 
   // ---- 물리 ----
-  var engine=Engine.create(); engine.gravity.y=1.0;
+  // ---- 물리 수치 (⚙️ 패널에서 직접 조절 · 브라우저에 저장됨) ----
+  // 기본값은 '차분하게': 튕김을 거의 없애고 마찰을 올려 냥이들이 덜 밀리게 맞춰 뒀다.
+  var PHYS_DEF={grav:1.00, rest:0.02, fric:0.80, fricS:1.30, air:0.022};
+  var PHYS={};
+  (function loadPhys(){
+    var saved=null;
+    try{ saved=JSON.parse(localStorage.getItem('nyang_phys')||'null'); }catch(e){}
+    for(var k in PHYS_DEF){
+      var v = saved && typeof saved[k]==='number' ? saved[k] : PHYS_DEF[k];
+      PHYS[k] = isFinite(v) ? v : PHYS_DEF[k];
+    }
+  })();
+
+  var engine=Engine.create(); engine.gravity.y=PHYS.grav;
   var world=engine.world;
   var WALL=60, GY=74, SPAWNY=40;
   function addWalls(){
@@ -486,7 +524,8 @@
   if(document.fonts && document.fonts.ready){ document.fonts.ready.then(refit)['catch'](function(){}); }
 
   function makeCat(x,y,t){
-    var b=Bodies.circle(x,y,TIERS[t].r,{restitution:0.08, friction:0.55, frictionStatic:0.9, density:0.0016, slop:0.02});
+    var b=Bodies.circle(x,y,TIERS[t].r,{restitution:PHYS.rest, friction:PHYS.fric,
+      frictionStatic:PHYS.fricS, frictionAir:PHYS.air, density:0.0016, slop:0.02});
     b.isCat=true; b.tier=t; b.merging=false; b.overT=0; b.spawnT=0; b.pop=0;
     return b;
   }
@@ -703,9 +742,21 @@
 
   // ---- 사운드 (첫 터치 후) ----
   var AC=null, muted=false;
-  function audioInit(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+  function audioInit(){
+    if(AC) return;
+    try{
+      AC=new (window.AudioContext||window.webkitAudioContext)();
+      // iOS는 사용자가 누른 그 순간에 실제로 소리를 한 번 내보내야 오디오가 깨어난다(무음 버퍼)
+      var buf=AC.createBuffer(1,1,22050), src=AC.createBufferSource();
+      src.buffer=buf; src.connect(AC.destination); src.start(0);
+    }catch(e){}
+  }
+  function audioWake(){   // 터치·클릭 때마다 불러 준다(아이폰은 수시로 오디오를 잠근다)
+    audioInit();
+    if(AC && AC.state!=='running'){ try{ AC.resume(); }catch(e){} }
+  }
   function beep(freq,dur){
-    if(muted||reduce||!AC) return;
+    if(muted||!AC) return;   // '동작 줄이기'는 애니메이션 설정이지 소리와 무관하다
     try{ var o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=freq;
       g.gain.value=0.0001; o.connect(g); g.connect(AC.destination); var t=AC.currentTime;
       g.gain.exponentialRampToValueAtTime(0.14, t+0.01); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
@@ -835,7 +886,7 @@
   }
   document.addEventListener('visibilitychange', function(){
     if(document.hidden){ saveNow(); stopBgm(); }
-    else { if(AC&&AC.state!=='running'){ try{ AC.resume(); }catch(e){} } startBgm(); }
+    else { if(AC && AC.state!=='running'){ try{ AC.resume(); }catch(e){} } startBgm(); }
   });
 
   function endGame(){
@@ -969,8 +1020,7 @@
   cv.addEventListener('pointermove', function(e){ dropX=toLocalX(e.clientX); pointerIn=true; });
   cv.addEventListener('pointerleave', function(){ pointerIn=false; });
   cv.addEventListener('pointerdown', function(e){
-    e.preventDefault(); audioInit(); if(AC&&AC.state!=='running'){ try{ AC.resume(); }catch(e){} }
-    startBgm();
+    e.preventDefault(); audioWake(); startBgm();
     var lx=toLocalX(e.clientX), ly=toLocalY(e.clientY); dropX=lx;
     if(useMode){ handleItemTap(lx,ly); } else { drop(lx); }
   });
@@ -978,17 +1028,21 @@
     var r=TIERS[cur].r, step=18;
     if(e.key==='ArrowLeft'){ dropX=Math.max(r,dropX-step); e.preventDefault(); }
     else if(e.key==='ArrowRight'){ dropX=Math.min(W-r,dropX+step); e.preventDefault(); }
-    else if(e.key===' '||e.key==='Enter'){ audioInit(); if(AC&&AC.state!=='running'){ try{ AC.resume(); }catch(e){} } startBgm(); drop(dropX); e.preventDefault(); }
+    else if(e.key===' '||e.key==='Enter'){ audioWake(); startBgm(); drop(dropX); e.preventDefault(); }
     else if(e.key==='Escape'){ useMode=null; swapFirst=null; updateItemUI(); }
   });
   document.getElementById('restart').addEventListener('click', reset);
   document.getElementById('retry').addEventListener('click', reset);
-  document.getElementById('mute').addEventListener('click', function(){ muted=!muted; this.textContent=muted?'🔇':'🔊'; });
+  document.getElementById('mute').addEventListener('click', function(){
+    muted=!muted; this.textContent=muted?'🔇':'🔊';
+    audioWake();
+    if(!muted) meow(3);          // 켜는 순간 소리로 확인할 수 있게
+  });
   var $bgm=document.getElementById('bgm');
   function setBgmUI(){ $bgm.classList.toggle('off',!bgmOn); $bgm.title=bgmOn?'배경음악 끄기':'배경음악 켜기'; }
   $bgm.addEventListener('click', function(){
     bgmOn=!bgmOn; try{ localStorage.setItem('nyang_bgm', bgmOn?'1':'0'); }catch(e){}
-    audioInit(); if(AC&&AC.state!=='running'){ try{ AC.resume(); }catch(e){} }
+    audioWake();
     if(bgmOn) startBgm(); else stopBgm();
     setBgmUI();
   });
@@ -1221,5 +1275,63 @@
   });
   document.getElementById('rankClose').addEventListener('click', function(){ document.getElementById('rankWrap').hidden=true; });
   document.getElementById('rankWrap').addEventListener('click', function(e){ if(e.target===this) this.hidden=true; });
+
+  // ---- 물리 조정 패널 ----
+  var PH_ROWS=[
+    {k:'grav',  nm:'중력',     min:0.40, max:1.60, step:0.02, ds:'클수록 빨리 떨어져요'},
+    {k:'rest',  nm:'튕김',     min:0.00, max:0.30, step:0.01, ds:'클수록 부딪힐 때 통통 튀어요'},
+    {k:'fric',  nm:'마찰',     min:0.10, max:1.00, step:0.02, ds:'클수록 덜 미끄러져요 (밀림이 줄어요)'},
+    {k:'fricS', nm:'버팀',     min:0.10, max:2.00, step:0.05, ds:'클수록 쌓인 냥이가 제자리를 잘 지켜요'},
+    {k:'air',   nm:'공기저항', min:0.00, max:0.06, step:0.002, ds:'클수록 전체적으로 느릿해져요'}
+  ];
+  function applyPhys(save){
+    engine.gravity.y=PHYS.grav;
+    var all=Composite.allBodies(world);
+    for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat) continue;
+      b.restitution=PHYS.rest; b.friction=PHYS.fric;
+      b.frictionStatic=PHYS.fricS; b.frictionAir=PHYS.air;
+    }
+    if(save!==false){ try{ localStorage.setItem('nyang_phys', JSON.stringify(PHYS)); }catch(e){} }
+  }
+  (function buildPhysUI(){
+    var host=document.getElementById('physRows'), inputs={}, vals={};
+    for(var i=0;i<PH_ROWS.length;i++){
+      (function(cfg){
+        var row=document.createElement('div'); row.className='ph-row';
+        var lab=document.createElement('div'); lab.className='lab';
+        var nm=document.createElement('span'); nm.className='nm'; nm.textContent=cfg.nm;
+        var vl=document.createElement('span'); vl.className='vl';
+        lab.appendChild(nm); lab.appendChild(vl);
+        var sl=document.createElement('input');
+        sl.type='range'; sl.min=cfg.min; sl.max=cfg.max; sl.step=cfg.step;
+        sl.setAttribute('aria-label', cfg.nm);
+        var ds=document.createElement('div'); ds.className='ds'; ds.textContent=cfg.ds;
+        row.appendChild(lab); row.appendChild(sl); row.appendChild(ds); host.appendChild(row);
+        inputs[cfg.k]=sl; vals[cfg.k]=vl;
+        sl.addEventListener('input', function(){
+          PHYS[cfg.k]=parseFloat(sl.value);
+          vl.textContent=PHYS[cfg.k].toFixed(cfg.step<0.01?3:2);
+          applyPhys(true);
+        });
+      })(PH_ROWS[i]);
+    }
+    function syncUI(){
+      for(var j=0;j<PH_ROWS.length;j++){
+        var c=PH_ROWS[j];
+        inputs[c.k].value=PHYS[c.k];
+        vals[c.k].textContent=Number(PHYS[c.k]).toFixed(c.step<0.01?3:2);
+      }
+    }
+    syncUI(); applyPhys(false);
+    document.getElementById('physBtn').addEventListener('click', function(){
+      syncUI(); document.getElementById('physWrap').hidden=false;
+    });
+    document.getElementById('physReset').addEventListener('click', function(){
+      for(var k in PHYS_DEF) PHYS[k]=PHYS_DEF[k];
+      syncUI(); applyPhys(true);
+    });
+    document.getElementById('physClose').addEventListener('click', function(){ document.getElementById('physWrap').hidden=true; });
+    document.getElementById('physWrap').addEventListener('click', function(e){ if(e.target===this) this.hidden=true; });
+  })();
 })();
 </script>
