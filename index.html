@@ -174,16 +174,6 @@
   .rk-status{ font-size:.78rem; color:var(--muted); margin:8px 0 0; text-align:center;}
   .rk-close{ margin-top:12px; width:100%;}
 
-  /* 물리 조정 패널 */
-  .ph-row{ margin-bottom:12px;}
-  .ph-row .lab{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:3px;}
-  .ph-row .nm{ font-weight:700; font-size:.86rem;}
-  .ph-row .vl{ font-family:var(--font-display); color:var(--accent); font-variant-numeric:tabular-nums;}
-  .ph-row .ds{ font-size:.68rem; color:var(--muted); margin-top:2px;}
-  .ph-row input[type=range]{ width:100%; accent-color:var(--accent); margin:0;}
-  .ph-btns{ display:flex; gap:8px; margin-top:4px;}
-  .ph-btns .btn{ flex:1;}
-  .ph-note{ font-size:.72rem; color:var(--muted); margin:0 0 10px; line-height:1.45;}
 </style>
 
 <div class="wrap">
@@ -216,7 +206,6 @@
     <div class="feverbar" id="feverBar" aria-label="피버 게이지"><div class="fv-fill" id="fvFill"></div><span class="fv-txt" id="fvTxt">피버 게이지 0 / 10</span></div>
     <div class="minis">
       <button class="icon" id="rankBtn" title="랭킹" aria-label="랭킹 보기">🏆</button>
-      <button class="icon" id="physBtn" title="물리 조정" aria-label="물리 조정">⚙️</button>
       <button class="icon" id="bgm" title="배경음악 켜기/끄기" aria-label="배경음악 켜기 끄기">🎵</button>
       <button class="icon" id="mute" title="효과음 켜기/끄기" aria-label="효과음 켜기 끄기">🔊</button>
     </div>
@@ -255,19 +244,6 @@
     <ol class="rk" id="rkList"></ol>
     <div class="rk-status" id="rkStatus">불러오는 중…</div>
     <button class="btn rk-close" id="rankClose">닫기</button>
-  </div>
-</div>
-
-<div class="rankwrap" id="physWrap" hidden>
-  <div class="rankcard">
-    <h3>⚙️ 물리 조정</h3>
-    <p class="ph-note">슬라이더를 움직이면 <b>바로 적용</b>돼요. 판에 있는 냥이한테도 즉시 반영되니
-      조금씩 바꿔가며 제일 재밌는 느낌을 찾아보세요. 설정은 저장됩니다.</p>
-    <div id="physRows"></div>
-    <div class="ph-btns">
-      <button class="btn" id="physReset">기본값</button>
-      <button class="btn" id="physClose">닫기</button>
-    </div>
   </div>
 </div>
 
@@ -460,18 +436,9 @@
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 250); });
 
   // ---- 물리 ----
-  // ---- 물리 수치 (⚙️ 패널에서 직접 조절 · 브라우저에 저장됨) ----
-  // 기본값은 '차분하게': 튕김을 거의 없애고 마찰을 올려 냥이들이 덜 밀리게 맞춰 뒀다.
-  var PHYS_DEF={grav:1.00, rest:0.02, fric:0.80, fricS:1.30, air:0.022};
-  var PHYS={};
-  (function loadPhys(){
-    var saved=null;
-    try{ saved=JSON.parse(localStorage.getItem('nyang_phys')||'null'); }catch(e){}
-    for(var k in PHYS_DEF){
-      var v = saved && typeof saved[k]==='number' ? saved[k] : PHYS_DEF[k];
-      PHYS[k] = isFinite(v) ? v : PHYS_DEF[k];
-    }
-  })();
+  // ---- 물리 수치 (플레이 느낌을 맞춰 확정한 값) ----
+  var PHYS={grav:1.00, rest:0.01, fric:1.00, fricS:2.00, air:0.022};
+  try{ localStorage.removeItem('nyang_phys'); }catch(e){}   // 예전 조정값이 남아 있으면 버린다
 
   var engine=Engine.create(); engine.gravity.y=PHYS.grav;
   var world=engine.world;
@@ -543,7 +510,7 @@
   try{ best=parseInt(localStorage.getItem('nyang_best')||'0',10)||0; }catch(e){}
   // 아이템: 이미 떨어진 냥이에 낮은 확률로 🎁가 붙고, 그 냥이를 '합치면' 획득 (파밍)
   var items={remove:0,swap:0,promote:0}, useMode=null, swapFirst=null;
-  var GIFT_PROB=0.07, GIFT_NAME={remove:'제거',swap:'교환',promote:'승급'}, GIFT_ICON={remove:'🧹',swap:'🔄',promote:'⭐'};
+  var GIFT_PROB=0.025, GIFT_NAME={remove:'제거',swap:'교환',promote:'승급'}, GIFT_ICON={remove:'🧹',swap:'🔄',promote:'⭐'};
   function rndTier(){ var w=[6,5,4,2,1], tot=18, x=Math.random()*tot, a=0; for(var i=0;i<w.length;i++){ a+=w[i]; if(x<a) return i; } return 0; }
 
   var $score=document.getElementById('score'), $best=document.getElementById('best');
@@ -1276,62 +1243,5 @@
   document.getElementById('rankClose').addEventListener('click', function(){ document.getElementById('rankWrap').hidden=true; });
   document.getElementById('rankWrap').addEventListener('click', function(e){ if(e.target===this) this.hidden=true; });
 
-  // ---- 물리 조정 패널 ----
-  var PH_ROWS=[
-    {k:'grav',  nm:'중력',     min:0.40, max:1.60, step:0.02, ds:'클수록 빨리 떨어져요'},
-    {k:'rest',  nm:'튕김',     min:0.00, max:0.30, step:0.01, ds:'클수록 부딪힐 때 통통 튀어요'},
-    {k:'fric',  nm:'마찰',     min:0.10, max:1.00, step:0.02, ds:'클수록 덜 미끄러져요 (밀림이 줄어요)'},
-    {k:'fricS', nm:'버팀',     min:0.10, max:2.00, step:0.05, ds:'클수록 쌓인 냥이가 제자리를 잘 지켜요'},
-    {k:'air',   nm:'공기저항', min:0.00, max:0.06, step:0.002, ds:'클수록 전체적으로 느릿해져요'}
-  ];
-  function applyPhys(save){
-    engine.gravity.y=PHYS.grav;
-    var all=Composite.allBodies(world);
-    for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat) continue;
-      b.restitution=PHYS.rest; b.friction=PHYS.fric;
-      b.frictionStatic=PHYS.fricS; b.frictionAir=PHYS.air;
-    }
-    if(save!==false){ try{ localStorage.setItem('nyang_phys', JSON.stringify(PHYS)); }catch(e){} }
-  }
-  (function buildPhysUI(){
-    var host=document.getElementById('physRows'), inputs={}, vals={};
-    for(var i=0;i<PH_ROWS.length;i++){
-      (function(cfg){
-        var row=document.createElement('div'); row.className='ph-row';
-        var lab=document.createElement('div'); lab.className='lab';
-        var nm=document.createElement('span'); nm.className='nm'; nm.textContent=cfg.nm;
-        var vl=document.createElement('span'); vl.className='vl';
-        lab.appendChild(nm); lab.appendChild(vl);
-        var sl=document.createElement('input');
-        sl.type='range'; sl.min=cfg.min; sl.max=cfg.max; sl.step=cfg.step;
-        sl.setAttribute('aria-label', cfg.nm);
-        var ds=document.createElement('div'); ds.className='ds'; ds.textContent=cfg.ds;
-        row.appendChild(lab); row.appendChild(sl); row.appendChild(ds); host.appendChild(row);
-        inputs[cfg.k]=sl; vals[cfg.k]=vl;
-        sl.addEventListener('input', function(){
-          PHYS[cfg.k]=parseFloat(sl.value);
-          vl.textContent=PHYS[cfg.k].toFixed(cfg.step<0.01?3:2);
-          applyPhys(true);
-        });
-      })(PH_ROWS[i]);
-    }
-    function syncUI(){
-      for(var j=0;j<PH_ROWS.length;j++){
-        var c=PH_ROWS[j];
-        inputs[c.k].value=PHYS[c.k];
-        vals[c.k].textContent=Number(PHYS[c.k]).toFixed(c.step<0.01?3:2);
-      }
-    }
-    syncUI(); applyPhys(false);
-    document.getElementById('physBtn').addEventListener('click', function(){
-      syncUI(); document.getElementById('physWrap').hidden=false;
-    });
-    document.getElementById('physReset').addEventListener('click', function(){
-      for(var k in PHYS_DEF) PHYS[k]=PHYS_DEF[k];
-      syncUI(); applyPhys(true);
-    });
-    document.getElementById('physClose').addEventListener('click', function(){ document.getElementById('physWrap').hidden=true; });
-    document.getElementById('physWrap').addEventListener('click', function(e){ if(e.target===this) this.hidden=true; });
-  })();
 })();
 </script>
