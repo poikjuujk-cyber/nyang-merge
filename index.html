@@ -180,6 +180,35 @@
   ol.rk li .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   ol.rk li .sc{ font-variant-numeric:tabular-nums; font-weight:700;}
   ol.rk li.me{ outline:2px solid var(--accent);}
+  /* 괴도 냥이 아이템 선택 */
+  .pickcard{ text-align:center; width:min(94vw,380px);}
+  .pickcard h3{ margin:2px 0 4px;}
+  .pick-note{ font-size:.8rem; color:var(--muted); margin:0 0 12px; line-height:1.5;}
+  #phantomCv{ display:block; width:200px; height:150px; margin:0 auto;}
+  .pick-row{ display:flex; flex-direction:column; gap:8px;}
+  button.pick-item{ display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:var(--bg); color:var(--fg); border:2px solid var(--line); border-radius:14px;
+    padding:10px 12px; cursor:pointer; font:inherit; opacity:0;
+    animation:pickIn .42s cubic-bezier(.2,1.4,.5,1) forwards;}
+  button.pick-item:hover, button.pick-item:focus-visible{ border-color:var(--accent); background:#ffeadf;}
+  :root[data-theme="dark"] button.pick-item:hover{ background:#4a3322;}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) button.pick-item:hover{ background:#4a3322;} }
+  button.pick-item:active{ transform:scale(.97);}
+  button.pick-item .ic{ font-size:1.5rem; flex:0 0 auto; width:34px; text-align:center;}
+  button.pick-item .nm{ font-family:var(--font-display); font-size:1.05rem; flex:0 0 52px;}
+  button.pick-item .ds{ font-size:.76rem; color:var(--muted); flex:1; min-width:0;}
+  /* 괴도냥이가 아래에서 솟아오르며 등장 */
+  #pickWrap.in #phantomCv{ animation:phantomIn .72s cubic-bezier(.15,1.5,.4,1) both;}
+  #pickWrap.in .pickcard{ animation:cardPop .38s cubic-bezier(.2,1.5,.5,1) both;}
+  @keyframes phantomIn{
+    0%{ transform:translateY(96px) scale(.55) rotate(-16deg); opacity:0;}
+    60%{ transform:translateY(-10px) scale(1.08) rotate(5deg); opacity:1;}
+    100%{ transform:translateY(0) scale(1) rotate(0);} }
+  @keyframes cardPop{ 0%{ transform:scale(.82); opacity:0;} 100%{ transform:scale(1); opacity:1;} }
+  @keyframes pickIn{ 0%{ transform:translateY(16px); opacity:0;} 100%{ transform:translateY(0); opacity:1;} }
+  @media (prefers-reduced-motion:reduce){
+    #pickWrap.in #phantomCv, #pickWrap.in .pickcard, button.pick-item{ animation-duration:.01s;}
+  }
   .rk-status{ font-size:.78rem; color:var(--muted); margin:8px 0 0; text-align:center;}
   .rk-close{ margin-top:12px; width:100%;}
 
@@ -240,6 +269,7 @@
     <div class="row" id="chainRow"></div>
   </div>
   <div class="hint" id="hint">탭/클릭한 자리로 고양이가 떨어져요. 같은 고양이끼리 닿으면 합쳐집니다.</div>
+  <!-- 아이템은 👑고등어 둘을 합쳐 터뜨렸을 때 괴도 냥이가 준다 -->
   </div>
 </div>
 
@@ -253,6 +283,15 @@
     <ol class="rk" id="rkList"></ol>
     <div class="rk-status" id="rkStatus">불러오는 중…</div>
     <button class="btn rk-close" id="rankClose">닫기</button>
+  </div>
+</div>
+
+<div class="rankwrap" id="pickWrap" hidden>
+  <div class="rankcard pickcard">
+    <canvas id="phantomCv" width="400" height="300" aria-hidden="true"></canvas>
+    <h3>🎩 괴도 냥이 등장!</h3>
+    <p class="pick-note">고등어를 터뜨린 솜씨, 훌륭하군.<br>하나만 골라 가게 — 선물이다냥.</p>
+    <div class="pick-row" id="pickRow"></div>
   </div>
 </div>
 
@@ -532,7 +571,8 @@
   try{ best=parseInt(localStorage.getItem('nyang_best')||'0',10)||0; }catch(e){}
   // 아이템: 이미 떨어진 냥이에 낮은 확률로 🎁가 붙고, 그 냥이를 '합치면' 획득 (파밍)
   var items={remove:0,swap:0,promote:0}, useMode=null, swapFirst=null;
-  var GIFT_PROB=0.025, GIFT_NAME={remove:'제거',swap:'교환',promote:'승급'}, GIFT_ICON={remove:'🧹',swap:'🔄',promote:'⭐'};
+  var GIFT_NAME={remove:'제거',swap:'교환',promote:'승급'}, GIFT_ICON={remove:'🧹',swap:'🔄',promote:'⭐'};
+  var GIFT_DESC={remove:'고양이 하나를 없애요', swap:'두 고양이의 자리를 바꿔요', promote:'고양이를 한 단계 올려요'};
   function rndTier(){ var w=[6,5,4,2,1], tot=18, x=Math.random()*tot, a=0; for(var i=0;i<w.length;i++){ a+=w[i]; if(x<a) return i; } return 0; }
 
   var $score=document.getElementById('score'), $best=document.getElementById('best');
@@ -563,24 +603,14 @@
       cur=nxt; nxt=rndTier(); drawNext();
       canDrop=false; setTimeout(function(){ canDrop=true; }, 340);
       beep(260+cur*12, 0.05);
-      maybeGift(); saveSoon();
+      saveSoon();
     }
   }
 
   // ---- 아이템 파밍: 낮은 확률로 보드의 냥이에 🎁 부여(동시 최대 2개) ----
-  function maybeGift(){
-    if(Math.random()>(fever?GIFT_PROB*2:GIFT_PROB)) return;   // 피버 중엔 확률 2배
-    var all=Composite.allBodies(world), cand=[], gifts=0;
-    for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat) continue;
-      if(b.gift) gifts++; else if(Math.hypot(b.velocity.x,b.velocity.y)<1.2) cand.push(b); }
-    if(gifts>=2 || !cand.length) return;
-    var pick=cand[Math.floor(Math.random()*cand.length)];
-    var kinds=['remove','swap','promote']; pick.gift=kinds[Math.floor(Math.random()*3)];
-    floaters.push({x:pick.position.x, y:pick.position.y-pick.circleRadius-8, t:0, txt:'🎁', big:false});
-  }
-  function awardGift(g,mx,my){
+  function awardGift(g){
     items[g]=(items[g]||0)+1; updateItemUI(); saveSoon();
-    floaters.push({x:mx, y:my-22, t:0, txt:'🎁 '+GIFT_NAME[g]+' 획득!', big:true, gold:true});
+    floaters.push({x:W/2, y:H*0.45, t:0, txt:GIFT_ICON[g]+' '+GIFT_NAME[g]+' 획득!', big:true, gold:true});
     beep(980,0.09);
   }
   function updateItemUI(){
@@ -594,7 +624,7 @@
     if(useMode==='remove') h.textContent='🧹 없앨 고양이를 탭하세요 (버튼을 다시 누르면 취소)';
     else if(useMode==='swap') h.textContent= swapFirst ? '🔄 자리를 바꿀 "상대" 고양이를 탭하세요' : '🔄 첫 번째 고양이를 탭하세요';
     else if(useMode==='promote') h.textContent='⭐ 승급시킬 고양이를 탭하세요';
-    else h.textContent='탭한 자리로 냥이가 떨어져요 · 가끔 냥이에 🎁가 떠요 — 그 냥이를 합치면 아이템 획득!';
+    else h.textContent='탭한 자리로 냥이가 떨어져요 · 👑고등어 둘을 터뜨리면 괴도냥이가 아이템을 줘요!';
     h.classList.toggle('idle', !useMode);   // 좁은 화면에선 아이템 쓸 때만 안내를 띄움
   }
   function hitCat(lx,ly){
@@ -614,7 +644,7 @@
     } else if(useMode==='promote'){
       if(b.tier>=MAX){ floaters.push({x:b.position.x,y:b.position.y-b.circleRadius-10,t:0,txt:'이미 최고봉!',big:false}); return; }
       items.promote--;
-      var nb=makeCat(b.position.x,b.position.y,b.tier+1); nb.pop=1; nb.gift=b.gift||null;
+      var nb=makeCat(b.position.x,b.position.y,b.tier+1); nb.pop=1;
       b.__gone=true; Composite.remove(world,b); Composite.add(world,nb);
       discover(nb.tier,false);
       meow(nb.tier); useMode=null; updateItemUI(); saveSoon();
@@ -656,8 +686,6 @@
       var mx=(a.position.x+b.position.x)/2, my=(a.position.y+b.position.y)/2, t=a.tier;
       a.__gone=b.__gone=true; Composite.remove(world,a); Composite.remove(world,b);
       burst(mx,my,TIERS[t].base, TIERS[t].r);
-      if(a.gift) awardGift(a.gift,mx,my);
-      if(b.gift) awardGift(b.gift,mx,my+18);
       if(swapFirst && (swapFirst===a||swapFirst===b)){ swapFirst=null; updateItemUI(); }
       // 콤보: 짧은 시간 안에 연속 머지면 배수 상승
       var nowT=performance.now();
@@ -682,27 +710,24 @@
           fanfare();
         }
       } else {
-        // 👑 고등어 + 고등어 = 츄르 대폭발! 판 전체가 연쇄로 터지고 점수를 쓸어 담는다
-        var bpts=Math.round(10000*mult);
-        var all2=Composite.allBodies(world), hit=[];
-        for(var k2=0;k2<all2.length;k2++){ var cb=all2[k2];
-          if(cb.isCat && !cb.__gone){
-            cb.__gone=true;
-            if(cb.gift) awardGift(cb.gift, cb.position.x, cb.position.y);
-            hit.push({x:cb.position.x, y:cb.position.y, col:TIERS[cb.tier].base, r:cb.circleRadius,
-                      d:Math.hypot(cb.position.x-mx, cb.position.y-my)});
-            bpts+=mergePoints(cb.tier+1)*3;     // 휩쓸린 냥이는 평소의 3배로 환산
-            Composite.remove(world,cb);
-          } }
-        // 폭심에서 가까운 냥이부터 차례로 터지게 예약한다(한꺼번에 터지면 밋밋하다)
-        hit.sort(function(a,b){ return a.d-b.d; });
-        for(var k3=0;k3<hit.length;k3++){ hit[k3].wait=k3*2.4; pendingBursts.push(hit[k3]); }
-        swapFirst=null; updateItemUI();
+        // 👑 고등어 + 고등어 = 츄르 대폭발! 둘만 사라지고 판은 그대로 둔다(난이도 유지)
+        var bpts=Math.round(12000*mult);
         setScore(score+bpts);
         bigExplosion(mx,my);
         floaters.push({x:W/2,y:H*0.30,t:0,txt:'🐟💥 츄르 대폭발!!',big:true,gold:true});
-        floaters.push({x:W/2,y:H*0.30+32,t:0,txt:'판 클리어 +'+fmt(bpts),big:true,gold:true});
-        fanfare(); boom(); shakeAmt=22;
+        floaters.push({x:W/2,y:H*0.30+32,t:0,txt:'+'+fmt(bpts),big:true,gold:true});
+        fanfare(); boom(); shakeAmt=30;
+        // 주변 냥이는 '터지는 느낌'만 받고 사라지지 않는다 — 폭심에서 바깥으로 번져 나간다
+        var near=[], all2=Composite.allBodies(world);
+        for(var k2=0;k2<all2.length;k2++){ var cb=all2[k2];
+          if(!cb.isCat || cb.__gone) continue;
+          var dd=Math.hypot(cb.position.x-mx, cb.position.y-my);
+          if(dd < Math.max(W,H)*0.62)
+            near.push({x:cb.position.x, y:cb.position.y, col:TIERS[cb.tier].base, r:cb.circleRadius, d:dd});
+        }
+        near.sort(function(p,q){ return p.d-q.d; });
+        for(var k3=0;k3<near.length;k3++){ near[k3].wait=4+k3*3.0; pendingBursts.push(near[k3]); }
+        openPhantom();                       // 괴도냥이가 아이템을 들고 등장
       }
     }
   }
@@ -740,6 +765,94 @@
         vx:(Math.random()-0.5)*1.2, vy:2.2+Math.random()*3.4, life:2.2, col:'#fff',
         sz:3+Math.random()*2, txt:'🐟'}); }
   }
+  // ---- 괴도 냥이: 고등어를 터뜨린 보상으로 아이템 3택을 내민다 ----
+  var phCv=document.getElementById('phantomCv'), phCtx=phCv?phCv.getContext('2d'):null;
+  var phT=0, phRaf=0, phOpen=false;
+  function drawPhantom(c, cx, cy, r, t){
+    var sway=Math.sin(t*2.1), bob=Math.sin(t*1.6)*r*0.05;
+    c.save(); c.translate(cx, cy+bob);
+    // 망토 (얼굴 뒤에서 펄럭)
+    c.save();
+    c.fillStyle='#b4243a'; c.strokeStyle='#7d1527'; c.lineWidth=Math.max(1.5,r*0.045);
+    c.beginPath();
+    c.moveTo(-r*0.92,-r*0.15);
+    c.quadraticCurveTo(-r*(1.9+sway*0.18), r*0.95, -r*0.42, r*1.58);
+    c.lineTo(r*0.42, r*1.58);
+    c.quadraticCurveTo(r*(1.9-sway*0.18), r*0.95, r*0.92,-r*0.15);
+    c.closePath(); c.fill(); c.stroke();
+    c.restore();
+    // 얼굴 — 턱시도 냥이
+    drawCat(c, 0, 0, r, 5, 0);
+    // 눈가리개
+    c.fillStyle='#15151c';
+    c.beginPath();
+    c.moveTo(-r*0.84,-r*0.26); c.lineTo(r*0.84,-r*0.26);
+    c.lineTo(r*0.74, r*0.12);  c.lineTo(-r*0.74, r*0.12);
+    c.closePath(); c.fill();
+    // 눈가리개 위로 또렷한 금색 눈
+    for(var sgn=-1; sgn<=1; sgn+=2){
+      c.fillStyle='#f6c74e'; c.beginPath(); c.arc(sgn*r*0.37,-r*0.06,r*0.17,0,7); c.fill();
+      c.fillStyle='#17171f'; c.beginPath(); c.arc(sgn*r*0.37,-r*0.03,r*0.085,0,7); c.fill();
+      c.fillStyle='rgba(255,255,255,.95)';
+      c.beginPath(); c.arc(sgn*r*0.37-r*0.06,-r*0.12,r*0.06,0,7); c.fill();
+    }
+    // 실크햇 (살짝 기울어)
+    c.save(); c.rotate(-0.12+sway*0.02);
+    c.fillStyle='#1b1b22';
+    c.fillRect(-r*0.95,-r*1.12, r*1.9, r*0.14);          // 챙
+    c.fillRect(-r*0.58,-r*1.86, r*1.16, r*0.78);          // 통
+    c.fillStyle='#b4243a'; c.fillRect(-r*0.58,-r*1.30, r*1.16, r*0.2);   // 띠
+    c.restore();
+    // 반짝임
+    c.fillStyle='rgba(255,246,200,'+(0.55+0.45*Math.sin(t*5)).toFixed(2)+')';
+    var sx=[-1.35,1.32,1.15,-1.18], sy=[-1.25,-1.45,0.62,0.78];
+    for(var i=0;i<4;i++){
+      var ss=r*(0.10+0.04*Math.sin(t*4+i));
+      c.beginPath();
+      c.moveTo(sx[i]*r, sy[i]*r-ss); c.lineTo(sx[i]*r+ss*0.4, sy[i]*r);
+      c.lineTo(sx[i]*r, sy[i]*r+ss); c.lineTo(sx[i]*r-ss*0.4, sy[i]*r);
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+  function phLoop(){
+    if(!phOpen || !phCtx) return;
+    phT+=0.016;
+    var w=phCv.width, h=phCv.height;
+    phCtx.setTransform(1,0,0,1,0,0); phCtx.clearRect(0,0,w,h);
+    drawPhantom(phCtx, w/2, h*0.54, h*0.235, phT);
+    phRaf=requestAnimationFrame(phLoop);
+  }
+  function openPhantom(){
+    var wrap=document.getElementById('pickWrap'); if(!wrap) return;
+    phOpen=true; phT=0;
+    wrap.hidden=false;
+    wrap.classList.remove('in'); void wrap.offsetWidth; wrap.classList.add('in');
+    cancelAnimationFrame(phRaf); phLoop();
+  }
+  function closePhantom(){
+    phOpen=false; cancelAnimationFrame(phRaf);
+    var wrap=document.getElementById('pickWrap'); if(wrap) wrap.hidden=true;
+  }
+  (function buildPick(){
+    var row=document.getElementById('pickRow'); if(!row) return;
+    var keys=['remove','swap','promote'];
+    for(var i=0;i<keys.length;i++){
+      (function(k,idx){
+        var b=document.createElement('button');
+        b.className='pick-item'; b.style.animationDelay=(0.18+idx*0.09)+'s';
+        var ic=document.createElement('span'); ic.className='ic'; ic.textContent=GIFT_ICON[k];
+        var nm=document.createElement('span'); nm.className='nm'; nm.textContent=GIFT_NAME[k];
+        var ds=document.createElement('span'); ds.className='ds'; ds.textContent=GIFT_DESC[k];
+        b.appendChild(ic); b.appendChild(nm); b.appendChild(ds);
+        b.addEventListener('click', function(){
+          awardGift(k); audioWake(); closePhantom();
+        });
+        row.appendChild(b);
+      })(keys[i], i);
+    }
+  })();
+
   function startFever(){
     fever=true; feverEnd=performance.now()+15000; feverGauge=0;
     floaters.push({x:W/2,y:H*0.32,t:0,txt:'🔥 피버 타임! 점수 x1.5 · 🎁 2배',big:true,gold:true});
@@ -882,7 +995,7 @@
       var bs=[], all=Composite.allBodies(world);
       for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat||b.__gone) continue;
         bs.push({x:Math.round(b.position.x*10)/10, y:Math.round(b.position.y*10)/10,
-                 t:b.tier, a:Math.round(b.angle*100)/100, g:b.gift||0}); }
+                 t:b.tier, a:Math.round(b.angle*100)/100}); }
       localStorage.setItem('nyang_save', JSON.stringify({v:1, h:H, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
       dirty=false;
     }catch(e){}
@@ -903,7 +1016,7 @@
         discover(e.t,true);
         // 위로 넘치는 냥이는 억지로 밀어넣지 않는다. 천장이 없으니 화면 위에서 자연히 떨어져 쌓인다.
         var ey=Math.min(H-TIERS[e.t].r-2, e.y+dy);
-        var b=makeCat(e.x,ey,e.t); Body.setAngle(b,e.a||0); if(e.g&&GIFT_NAME[e.g]) b.gift=e.g;
+        var b=makeCat(e.x,ey,e.t); Body.setAngle(b,e.a||0);
         Composite.add(world,b); }
       discover(cur,true); drawNext(); return true;
     }catch(e){ return false; }
@@ -975,15 +1088,6 @@
       // 그림자
       ctx.fillStyle='rgba(120,80,40,.12)'; ctx.beginPath(); ctx.ellipse(b.position.x, b.position.y+b.circleRadius*0.82, b.circleRadius*0.8, b.circleRadius*0.22,0,0,7); ctx.fill();
       ctx.save(); ctx.translate(b.position.x,b.position.y); ctx.scale(s,s); drawCat(ctx,0,0,b.circleRadius,b.tier,b.angle); ctx.restore();
-      if(b.gift){ // 🎁 배지 (살짝 둥실거림)
-        var bob=reduce?0:Math.sin(performance.now()/280 + b.id)*2.2;
-        var gx=b.position.x + b.circleRadius*0.66, gy=b.position.y - b.circleRadius*0.66 + bob;
-        var gr=Math.max(9, Math.min(15, b.circleRadius*0.3));
-        ctx.fillStyle='#f4c542'; ctx.beginPath(); ctx.arc(gx,gy,gr,0,7); ctx.fill();
-        ctx.strokeStyle='#d79a1e'; ctx.lineWidth=1.6; ctx.stroke();
-        ctx.font=(gr*1.2)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(GIFT_ICON[b.gift], gx, gy+1); ctx.textBaseline='alphabetic'; ctx.textAlign='left';
-      }
       if(swapFirst===b && !b.__gone){ // 교환 1번 선택 표시
         ctx.strokeStyle='#ef7d57'; ctx.lineWidth=3; ctx.setLineDash([6,5]);
         ctx.beginPath(); ctx.arc(b.position.x,b.position.y,b.circleRadius+6,0,7); ctx.stroke(); ctx.setLineDash([]);
