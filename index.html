@@ -24,18 +24,22 @@
     --accent:#ef7d57; --accent-2:#f4b942; --line:#473726; --shadow:rgba(0,0,0,.35);
     color-scheme:dark;
   }
+  html{ -webkit-text-size-adjust:100%; }
   html,body{height:100%;}
   [hidden]{ display:none !important; }
   body{
     margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body);
     display:flex; flex-direction:column; align-items:center; overflow:hidden;
     -webkit-user-select:none; user-select:none; touch-action:manipulation;
+    overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
   }
+  button, canvas{ -webkit-tap-highlight-color:transparent; }
   .wrap{
     width:100%; max-width:680px; height:100%;
     padding-left:max(14px, env(safe-area-inset-left,0px));
     padding-right:max(14px, env(safe-area-inset-right,0px));
-    padding-block:10px;
+    padding-top:max(10px, env(safe-area-inset-top,0px));
+    padding-bottom:max(10px, env(safe-area-inset-bottom,0px));
     display:flex; flex-direction:column; align-items:center; gap:10px; box-sizing:border-box;
   }
   .top{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -50,7 +54,7 @@
   .stage{ position:relative; display:flex; justify-content:center; width:100%; flex:0 1 auto;}
   .board{ position:relative; width:min(100%, calc((100vh - 298px) * var(--arw)), 586px); aspect-ratio:var(--ar); height:auto;
           border-radius:20px; overflow:hidden; box-shadow:0 10px 26px var(--shadow), inset 0 0 0 2px rgba(255,255,255,.04);}
-  canvas#game{ display:block; width:100%; height:100%; cursor:pointer;}
+  canvas#game{ display:block; width:100%; height:100%; cursor:pointer; touch-action:none;}
 
   .over{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
          background:rgba(30,20,12,.62); color:#fff8ec; border-radius:20px; backdrop-filter:blur(3px); text-align:center; padding:20px;}
@@ -120,7 +124,7 @@
     .stage{ grid-column:2; grid-row:1; order:0; width:auto;}
     .side{ grid-column:3; grid-row:1; order:1; display:flex; flex-direction:column; gap:10px;
            width:100%; max-width:340px; min-width:0; justify-self:start;}
-    .board{ width:min(calc((100vh - 48px) * var(--arw)), calc(100vw - 430px), 700px); }
+    .board{ width:min(calc((100vh - 48px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * var(--arw)), calc(100vw - 430px), 700px); }
     .side .top{ flex-wrap:wrap; row-gap:6px;}
     .side .controls{ flex-wrap:wrap; row-gap:8px;}
     .chain .hd{ display:block; }
@@ -133,7 +137,9 @@
     .wrap{ height:100dvh;
            padding-left:max(4px, env(safe-area-inset-left,0px));
            padding-right:max(4px, env(safe-area-inset-right,0px));
-           padding-block:6px; gap:6px;}
+           padding-top:max(6px, env(safe-area-inset-top,0px));
+           padding-bottom:max(6px, env(safe-area-inset-bottom,0px));
+           gap:6px;}
     .stage{ flex:1 1 auto; min-height:0; width:100%;}
     /* JS가 인라인 px로 정확히 덮어쓴다. 아래 값은 JS가 못 돌 때도 비율이 깨지지 않게 하는 안전망 */
     .board{ width:auto; height:100%; max-width:100%; max-height:100%; aspect-ratio:var(--ar); border-radius:16px;}
@@ -155,7 +161,10 @@
 
   /* 랭킹 오버레이 */
   .rankwrap{ position:fixed; inset:0; background:rgba(25,16,9,.55); display:flex; align-items:center; justify-content:center; z-index:30;
-    padding:max(16px, env(safe-area-inset-left,0px)); }
+    padding-left:max(16px, env(safe-area-inset-left,0px));
+    padding-right:max(16px, env(safe-area-inset-right,0px));
+    padding-top:max(16px, env(safe-area-inset-top,0px));
+    padding-bottom:max(16px, env(safe-area-inset-bottom,0px)); }
   .rankcard{ width:min(92vw,360px); max-height:80vh; overflow:auto; background:var(--panel); color:var(--fg);
     border:1px solid var(--line); border-radius:18px; padding:16px; box-shadow:0 14px 34px rgba(0,0,0,.35);}
   .rankcard h3{ font-family:var(--font-display); margin:0 0 10px; font-size:1.25rem;}
