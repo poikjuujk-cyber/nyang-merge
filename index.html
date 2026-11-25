@@ -388,6 +388,8 @@
   // ---- 캔버스 / 반응형 ----
   var cv=document.getElementById('game'), ctx=cv.getContext('2d');
   var W=400, H=560, dpr=1;
+  // 캔버스를 '균일 배율 + 중앙 정렬'로 그린다. 박스 비율이 어긋나도 절대 찌그러지지 않는다.
+  var viewScale=1, viewOffX=0, viewOffY=0, bgGrad=null;
   var boardEl=document.querySelector('.board'), stageEl=document.querySelector('.stage');
 
   // 세로 폰 레이아웃인지 '매번' 다시 판단한다. (회전·창 크기 변경에 따라오게)
@@ -427,10 +429,17 @@
   function resize(){
     layoutBoard();
     var rc=cv.getBoundingClientRect();
-    var disp=rc.width>0? rc.width/W : 1;   // 화면에 커진 만큼 백킹 해상도도 키워 선명하게
-    dpr=Math.max(1, Math.min(3, disp*(window.devicePixelRatio||1)));
-    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    // 아직 화면에 자리를 못 잡은 상태(숨은 탭·로딩 중)면 다음 프레임에 다시 시도한다.
+    // 여기서 그냥 끝내면 캔버스가 기본 크기로 굳어 고양이가 찌그러져 보인다.
+    if(rc.width<2 || rc.height<2){ requestAnimationFrame(resize); return; }
+    dpr=Math.max(1, Math.min(2, window.devicePixelRatio||1));   // 2면 충분히 선명하고 폰에서 훨씬 가볍다
+    cv.width=Math.round(rc.width*dpr); cv.height=Math.round(rc.height*dpr);
+    viewScale=Math.min(rc.width/W, rc.height/H);                // 가로·세로 같은 배율 → 찌그러짐 불가
+    viewOffX=(rc.width - W*viewScale)/2;
+    viewOffY=(rc.height - H*viewScale)/2;
+    ctx.setTransform(dpr*viewScale, 0, 0, dpr*viewScale, dpr*viewOffX, dpr*viewOffY);
+    bgGrad=ctx.createLinearGradient(0,0,0,H);                   // 매 프레임 만들지 않고 캐시
+    bgGrad.addColorStop(0,'#fff3e0'); bgGrad.addColorStop(1,'#f6dfc0');
   }
   resize(); window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 250); });
@@ -488,6 +497,9 @@
     }catch(e){}
   }
   window.addEventListener('resize', refit);
+  // 아이폰은 주소창이 접히고 펴지며 화면 높이가 뒤늦게 바뀐다. 그때마다 다시 맞춘다.
+  if(window.visualViewport){ try{ window.visualViewport.addEventListener('resize', refit); }catch(e){} }
+  setTimeout(refit, 300); setTimeout(refit, 1200);
   if(document.fonts && document.fonts.ready){ document.fonts.ready.then(refit)['catch'](function(){}); }
 
   function makeCat(x,y,t){
@@ -889,11 +901,13 @@
   function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
   function render(){
     var nowR=performance.now();
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0);                  // 남는 여백까지 배경색으로 덮는다
+    ctx.fillStyle='#f6dfc0'; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.restore();
     ctx.save();
     if(shakeAmt>0.1 && !reduce) ctx.translate((Math.random()-0.5)*shakeAmt,(Math.random()-0.5)*shakeAmt);
     // 배경(따뜻한 상자)
-    var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#fff3e0'); g.addColorStop(1,'#f6dfc0');
-    ctx.fillStyle=g; ctx.fillRect(-14,-14,W+28,H+28);
+    ctx.fillStyle=bgGrad||'#f6dfc0'; ctx.fillRect(-14,-14,W+28,H+28);
     // 바닥 결
     ctx.fillStyle='rgba(180,130,80,.10)'; ctx.fillRect(0,H-26,W,26);
     // 경고선 (위험할수록 빨갛게 고동침)
@@ -959,19 +973,24 @@
   }
 
   // ---- 루프 ----
-  var last=performance.now();
+  var last=performance.now(), acc=0, STEP=1000/60;
   function loop(now){
-    var dt=Math.min(40, now-last); last=now;
+    var dt=Math.min(100, now-last); last=now;
     if(!over){
-      Engine.update(engine, dt);
+      // 물리는 항상 1/60초 단위로만 돌린다 → 주사율·프레임 드랍과 무관하게 모든 기기에서 같은 속도
+      acc+=dt;
+      var steps=0;
+      while(acc>=STEP && steps<5){ Engine.update(engine, STEP); acc-=STEP; steps++; }
+      if(steps>=5) acc=0;   // 많이 밀렸으면 따라잡기를 포기(느려지느니 건너뛴다)
       processMerges();
       // 스폰 시각 기록
       var bodies=Composite.allBodies(world);
       for(var i=0;i<bodies.length;i++){ if(bodies[i].isCat && !bodies[i].spawnStamp) bodies[i].spawnStamp=now; }
       checkOver(dt);
     }
-    for(var p=particles.length-1;p>=0;p--){ var pt=particles[p]; pt.x+=pt.vx; pt.y+=pt.vy; pt.vy+=0.14; pt.life-=0.03; if(pt.life<=0) particles.splice(p,1); }
-    for(var f=floaters.length-1;f>=0;f--){ var fl=floaters[f]; fl.t+=0.016; fl.y-=0.5; if(fl.t>=1) floaters.splice(f,1); }
+    var ts=dt/STEP;   // 120Hz에서 연출만 2배 빨라지지 않게 프레임 길이에 비례시킨다
+    for(var p=particles.length-1;p>=0;p--){ var pt=particles[p]; pt.x+=pt.vx*ts; pt.y+=pt.vy*ts; pt.vy+=0.14*ts; pt.life-=0.03*ts; if(pt.life<=0) particles.splice(p,1); }
+    for(var f=floaters.length-1;f>=0;f--){ var fl=floaters[f]; fl.t+=0.016*ts; fl.y-=0.5*ts; if(fl.t>=1) floaters.splice(f,1); }
     if(combo && now>comboExpire) combo=0;
     if(fever && now>feverEnd){ fever=false; floaters.push({x:W/2,y:H*0.3,t:0,txt:'피버 종료!',big:false}); }
     if(shakeAmt>0.1) shakeAmt*=0.86; else shakeAmt=0;
@@ -982,8 +1001,8 @@
   }
 
   // ---- 입력 ----
-  function toLocalX(clientX){ var rc=cv.getBoundingClientRect(); return (clientX-rc.left)/rc.width*W; }
-  function toLocalY(clientY){ var rc=cv.getBoundingClientRect(); return (clientY-rc.top)/rc.height*H; }
+  function toLocalX(clientX){ var rc=cv.getBoundingClientRect(); return ((clientX-rc.left)-viewOffX)/viewScale; }
+  function toLocalY(clientY){ var rc=cv.getBoundingClientRect(); return ((clientY-rc.top)-viewOffY)/viewScale; }
   cv.addEventListener('pointermove', function(e){ dropX=toLocalX(e.clientX); pointerIn=true; });
   cv.addEventListener('pointerleave', function(){ pointerIn=false; });
   cv.addEventListener('pointerdown', function(e){
