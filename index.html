@@ -305,13 +305,15 @@
   // ---- 고양이 종류(합치는 순서, 작은→큰). 모두 오리지널 디자인 ----
   var TIERS = [
     {name:'아깽이', r:18,  base:'#f4e3c6', ear:'#f4e3c6', inner:'#f6b9bf', pat:'none'},
-    {name:'치즈',   r:24,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
-    {name:'삼색',   r:32,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
-    {name:'턱시도', r:42,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
-    {name:'젖소',   r:55,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
+    {name:'치즈',   r:22,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
+    {name:'하양',   r:26,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'none'},
+    {name:'삼색',   r:31,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
+    {name:'초코',   r:37,  base:'#7a5139', ear:'#7a5139', inner:'#e0a292', pat:'none', dark:true},
+    {name:'턱시도', r:45,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
+    {name:'젖소',   r:54,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
     {name:'샴',     r:64,  base:'#efe3cf', ear:'#6b5245', inner:'#c9a79e', pat:'siamese'},
-    {name:'페르시안',r:80,  base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
-    {name:'고등어', r:95,  base:'#9aa4ae', ear:'#9aa4ae', inner:'#c49aa0', pat:'mackerel', stripe:'#3a434f', crown:true},
+    {name:'페르시안',r:77,  base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
+    {name:'고등어', r:93,  base:'#9aa4ae', ear:'#9aa4ae', inner:'#c49aa0', pat:'mackerel', stripe:'#3a434f', crown:true},
   ];
   var MAX = TIERS.length-1;
   // 합쳐서 '그 단계'가 만들어질 때 얻는 점수(단계가 오를수록 커짐)
@@ -497,13 +499,27 @@
   var engine=Engine.create(); engine.gravity.y=PHYS.grav;
   var world=engine.world;
   var WALL=60, GY=74, SPAWNY=40;
+  // 놀이판은 화면보다 세로로 길다. 쌓일수록 카메라가 위로 올라가며 더 넓은 공간을 보여준다.
+  var WORLD=Math.round(H*1.75);      // 월드 전체 높이 (바닥은 y=WORLD)
+  var camY=WORLD-H;                  // 화면에 보이는 구간의 위쪽 월드 좌표
+  var CAM_MARGIN=210;                // 가장 높은 냥이 위로 이만큼은 늘 비워 둔다
+  function worldH(){ return Math.round(H*1.75); }
   function addWalls(){
     var opt={isStatic:true, friction:0.6, restitution:0.0};
     Composite.add(world,[
-      Bodies.rectangle(-WALL/2, H/2, WALL, H*2, opt),       // 좌
-      Bodies.rectangle(W+WALL/2, H/2, WALL, H*2, opt),      // 우
-      Bodies.rectangle(W/2, H+WALL/2, W*2, WALL, opt),      // 바닥
+      Bodies.rectangle(-WALL/2, WORLD/2, WALL, WORLD*2+H*2, opt),   // 좌
+      Bodies.rectangle(W+WALL/2, WORLD/2, WALL, WORLD*2+H*2, opt),  // 우
+      Bodies.rectangle(W/2, WORLD+WALL/2, W*2, WALL, opt),          // 바닥
     ]);
+  }
+  // 가장 높이 쌓인 냥이를 따라 카메라를 올린다(내려올 때도 부드럽게)
+  function updateCam(ts, snap){
+    var top=WORLD, all=Composite.allBodies(world);
+    for(var i=0;i<all.length;i++){ var b=all[i];
+      if(b.isCat && !b.__gone) top=Math.min(top, b.position.y-b.circleRadius); }
+    var want=Math.max(0, Math.min(WORLD-H, top-CAM_MARGIN));
+    if(snap) camY=want;
+    else camY += (want-camY)*Math.min(1, 0.07*(ts||1));
   }
   addWalls();
 
@@ -515,6 +531,7 @@
     var want=wantedH();
     if(!playStarted && Math.abs(want-H)>4){
       var dy=want-H; H=want; syncAR();
+      var oldWorld=WORLD; WORLD=worldH(); dy+=WORLD-oldWorld;
       var all=Composite.allBodies(world).slice(), i, b;
       for(i=0;i<all.length;i++){
         b=all[i];
@@ -562,8 +579,8 @@
   var shakeAmt=0, dangerLevel=0, lastAlarm=0;
   var shockwaves=[], flashAmt=0, pendingBursts=[];   // 대폭발용: 충격파 · 섬광 · 연쇄 폭발 대기열
   var discovered={};
-  try{ var _dx=JSON.parse(localStorage.getItem('nyang_dex2')||'[]'); for(var _di=0;_di<_dx.length;_di++) discovered[_dx[_di]]=1; }catch(e){}
-  try{ localStorage.removeItem('nyang_dex'); }catch(e){}   // 11단계 시절 도감은 번호가 달라 쓸 수 없다
+  try{ var _dx=JSON.parse(localStorage.getItem('nyang_dex3')||'[]'); for(var _di=0;_di<_dx.length;_di++) discovered[_dx[_di]]=1; }catch(e){}
+  try{ localStorage.removeItem('nyang_dex'); localStorage.removeItem('nyang_dex2'); }catch(e){}   // 단계 번호가 바뀌어 옛 도감은 쓸 수 없다
   function comboMult(){ return Math.min(3, 1+(combo-1)*0.5); }
   function scoreMult(){ return (combo>1?comboMult():1) * (fever?1.5:1); }
   try{ best=parseInt(localStorage.getItem('nyang_best')||'0',10)||0; }catch(e){}
@@ -597,7 +614,7 @@
     if(!over && canDrop && !useMode){
       var r=TIERS[cur].r; var px=Math.max(r+2, Math.min(W-r-2, x));
       playStarted=true;
-      var b=makeCat(px, SPAWNY, cur); Composite.add(world,b);
+      var b=makeCat(px, camY+SPAWNY, cur); Composite.add(world,b);
       cur=nxt; nxt=rndTier(); drawNext();
       canDrop=false; setTimeout(function(){ canDrop=true; }, 340);
       beep(260+cur*12, 0.05);
@@ -608,7 +625,7 @@
   // ---- 아이템 파밍: 낮은 확률로 보드의 냥이에 🎁 부여(동시 최대 2개) ----
   function awardGift(g){
     items[g]=(items[g]||0)+1; updateItemUI(); saveSoon();
-    floaters.push({x:W/2, y:H*0.45, t:0, txt:GIFT_ICON[g]+' '+GIFT_NAME[g]+' 획득!', big:true, gold:true});
+    floaters.push({x:W/2, y:camY+H*0.45, t:0, txt:GIFT_ICON[g]+' '+GIFT_NAME[g]+' 획득!', big:true, gold:true});
     beep(980,0.09);
   }
   function updateItemUI(){
@@ -703,8 +720,8 @@
         shakeAmt=Math.min(10, shakeAmt+1.2+(t+1)*0.8);
         meow(t+1);
         if(t+1===MAX){
-          floaters.push({x:W/2,y:H*0.4,t:0,txt:'👑 고등어 완성!',big:true,gold:true});
-          floaters.push({x:W/2,y:H*0.4+30,t:0,txt:'고등어 둘을 만나게 하면 💥',big:false,gold:true});
+          floaters.push({x:W/2,y:camY+H*0.4,t:0,txt:'👑 고등어 완성!',big:true,gold:true});
+          floaters.push({x:W/2,y:camY+H*0.4+30,t:0,txt:'고등어 둘을 만나게 하면 💥',big:false,gold:true});
           fanfare();
         }
       } else {
@@ -712,8 +729,8 @@
         var bpts=Math.round(12000*mult);
         setScore(score+bpts);
         bigExplosion(mx,my);
-        floaters.push({x:W/2,y:H*0.30,t:0,txt:'🐟💥 츄르 대폭발!!',big:true,gold:true});
-        floaters.push({x:W/2,y:H*0.30+32,t:0,txt:'+'+fmt(bpts),big:true,gold:true});
+        floaters.push({x:W/2,y:camY+H*0.30,t:0,txt:'🐟💥 츄르 대폭발!!',big:true,gold:true});
+        floaters.push({x:W/2,y:camY+H*0.30+32,t:0,txt:'+'+fmt(bpts),big:true,gold:true});
         fanfare(); boom(); shakeAmt=30;
         // 주변 냥이는 '터지는 느낌'만 받고 사라지지 않는다 — 폭심에서 바깥으로 번져 나간다
         var near=[], all2=Composite.allBodies(world);
@@ -759,7 +776,7 @@
     for(var j=0;j<26;j++){ var a2=Math.random()*7, sp2=1.5+Math.random()*4.5;
       particles.push({x:x,y:y,vx:Math.cos(a2)*sp2,vy:Math.sin(a2)*sp2-3, life:1.7, col:'#fff', sz:3+Math.random()*2.6, txt:em[j%em.length]}); }
     for(var k=0;k<22;k++){                         // 하늘에서 츄르(생선)가 쏟아진다
-      particles.push({x:Math.random()*W, y:-20-Math.random()*160,
+      particles.push({x:Math.random()*W, y:camY-20-Math.random()*160,
         vx:(Math.random()-0.5)*1.2, vy:2.2+Math.random()*3.4, life:2.2, col:'#fff',
         sz:3+Math.random()*2, txt:'🐟'}); }
   }
@@ -780,7 +797,7 @@
     c.closePath(); c.fill(); c.stroke();
     c.restore();
     // 얼굴 — 턱시도 냥이
-    drawCat(c, 0, 0, r, 3, 0);
+    drawCat(c, 0, 0, r, 5, 0);
     // 눈가리개
     c.fillStyle='#15151c';
     c.beginPath();
@@ -853,7 +870,7 @@
 
   function startFever(){
     fever=true; feverEnd=performance.now()+15000; feverGauge=0;
-    floaters.push({x:W/2,y:H*0.32,t:0,txt:'🔥 피버 타임! 점수 x1.5 · 🎁 2배',big:true,gold:true});
+    floaters.push({x:W/2,y:camY+H*0.32,t:0,txt:'🔥 피버 타임! 점수 x1.5 · 🎁 2배',big:true,gold:true});
     fanfare();
   }
 
@@ -1015,29 +1032,29 @@
       for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat||b.__gone) continue;
         bs.push({x:Math.round(b.position.x*10)/10, y:Math.round(b.position.y*10)/10,
                  t:b.tier, a:Math.round(b.angle*100)/100}); }
-      localStorage.setItem('nyang_save', JSON.stringify({v:2, h:H, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
+      localStorage.setItem('nyang_save', JSON.stringify({v:3, h:WORLD, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
       dirty=false;
     }catch(e){}
   }
   function tryRestore(){
     try{
       var s=localStorage.getItem('nyang_save'); if(!s) return false;
-      var d=JSON.parse(s); if(!d||d.v!==2||!d.bs||!d.bs.length) return false;   // 구버전(11단계) 저장본은 버린다
+      var d=JSON.parse(s); if(!d||d.v!==3||!d.bs||!d.bs.length) return false;   // 좌표계가 바뀐 구버전 저장본은 버린다
       setScore(Math.max(0,d.score|0));
       cur=Math.min(3,Math.max(0,d.cur|0)); nxt=Math.min(3,Math.max(0,d.nxt|0));
       if(d.it){ items.remove=Math.max(0,d.it.remove|0); items.swap=Math.max(0,d.it.swap|0); items.promote=Math.max(0,d.it.promote|0); }
       feverGauge=Math.max(0,Math.min(FEVER_NEED-1,d.fg|0));
       // 다른 기기(판 높이가 다른 화면)에서 저장한 판이면 바닥 기준으로 통째로 옮긴다.
       // 비례로 줄이면 쌓인 더미가 서로 파고들어 연쇄 머지·즉시 게임오버가 난다.
-      var sh=(typeof d.h==='number' && d.h>100)? d.h : 560, dy=H-sh;
+      var sh=(typeof d.h==='number' && d.h>100)? d.h : WORLD, dy=WORLD-sh;
       for(var i=0;i<d.bs.length;i++){ var e=d.bs[i];
         if(typeof e.t!=='number'||e.t<0||e.t>MAX) continue;
         discover(e.t,true);
         // 위로 넘치는 냥이는 억지로 밀어넣지 않는다. 천장이 없으니 화면 위에서 자연히 떨어져 쌓인다.
-        var ey=Math.min(H-TIERS[e.t].r-2, e.y+dy);
+        var ey=Math.min(WORLD-TIERS[e.t].r-2, e.y+dy);
         var b=makeCat(e.x,ey,e.t); Body.setAngle(b,e.a||0);
         Composite.add(world,b); }
-      discover(cur,true); drawNext(); return true;
+      discover(cur,true); drawNext(); updateCam(1,true); return true;
     }catch(e){ return false; }
   }
   document.addEventListener('visibilitychange', function(){
@@ -1056,7 +1073,7 @@
     for(var i=0;i<bodies.length;i++){ if(bodies[i].isCat) Composite.remove(world,bodies[i]); }
     particles=[]; floaters=[]; toMerge=[]; over=false; setScore(0);
     combo=0; comboExpire=0; fever=false; feverGauge=0; shakeAmt=0; dangerLevel=0;
-    shockwaves=[]; flashAmt=0; pendingBursts=[];
+    shockwaves=[]; flashAmt=0; pendingBursts=[]; camY=WORLD-H;
     useMode=null; swapFirst=null;
     try{ localStorage.removeItem('nyang_save'); }catch(e){}
     dirty=false;
@@ -1086,8 +1103,9 @@
     if(shakeAmt>0.1 && !reduce) ctx.translate((Math.random()-0.5)*shakeAmt,(Math.random()-0.5)*shakeAmt);
     // 배경(따뜻한 상자)
     ctx.fillStyle=bgGrad||'#f6dfc0'; ctx.fillRect(-14,-14,W+28,H+28);
+    ctx.save(); ctx.translate(0, -camY);        // ↓ 여기부터 월드 좌표
     // 바닥 결
-    ctx.fillStyle='rgba(180,130,80,.10)'; ctx.fillRect(0,H-26,W,26);
+    ctx.fillStyle='rgba(180,130,80,.10)'; ctx.fillRect(0,WORLD-26,W,26);
     // 경고선 (위험할수록 빨갛게 고동침)
     var pulse=0.5+0.5*Math.sin(nowR/110);
     if(dangerLevel>0 && !over){
@@ -1116,8 +1134,8 @@
     if(!over){
       var r=TIERS[cur].r, px=Math.max(r+2,Math.min(W-r-2,dropX));
       ctx.strokeStyle='rgba(239,125,87,.35)'; ctx.lineWidth=2; ctx.setLineDash([4,6]);
-      ctx.beginPath(); ctx.moveTo(px,SPAWNY+r); ctx.lineTo(px,H-6); ctx.stroke(); ctx.setLineDash([]);
-      ctx.globalAlpha=canDrop?1:0.4; drawCat(ctx,px,SPAWNY,r,cur,0); ctx.globalAlpha=1;
+      ctx.beginPath(); ctx.moveTo(px,camY+SPAWNY+r); ctx.lineTo(px,WORLD-6); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha=canDrop?1:0.4; drawCat(ctx,px,camY+SPAWNY,r,cur,0); ctx.globalAlpha=1;
     }
     // 파티클 (동그라미 + 이모지 스파클)
     for(var p=particles.length-1;p>=0;p--){ var pt=particles[p];
@@ -1134,6 +1152,7 @@
       ctx.beginPath(); ctx.arc(S.x,S.y,rr,0,7); ctx.stroke();
       ctx.globalAlpha=1;
     }
+    ctx.restore();                              // ↑ 여기까지 월드 좌표
     // 섬광 (화면 전체가 번쩍)
     if(flashAmt>0.01){
       ctx.globalAlpha=Math.min(1,flashAmt)*0.8; ctx.fillStyle='#fffbe8';
@@ -1189,8 +1208,9 @@
     }
     if(flashAmt>0.01) flashAmt*=Math.pow(0.86, ts); else flashAmt=0;
     if(combo && now>comboExpire) combo=0;
-    if(fever && now>feverEnd){ fever=false; floaters.push({x:W/2,y:H*0.3,t:0,txt:'피버 종료!',big:false}); }
+    if(fever && now>feverEnd){ fever=false; floaters.push({x:W/2,y:camY+H*0.3,t:0,txt:'피버 종료!',big:false}); }
     if(shakeAmt>0.1) shakeAmt*=0.86; else shakeAmt=0;
+    if(!over) updateCam(ts);
     updateFeverBar(now);
     if(dirty && now-lastSave>2500){ lastSave=now; saveNow(); }
     render();
@@ -1199,7 +1219,7 @@
 
   // ---- 입력 ----
   function toLocalX(clientX){ var rc=cv.getBoundingClientRect(); return ((clientX-rc.left)-viewOffX)/viewScale; }
-  function toLocalY(clientY){ var rc=cv.getBoundingClientRect(); return ((clientY-rc.top)-viewOffY)/viewScale; }
+  function toLocalY(clientY){ var rc=cv.getBoundingClientRect(); return ((clientY-rc.top)-viewOffY)/viewScale + camY; }
   cv.addEventListener('pointermove', function(e){ dropX=toLocalX(e.clientX); pointerIn=true; });
   cv.addEventListener('pointerleave', function(){ pointerIn=false; });
   cv.addEventListener('pointerdown', function(e){
@@ -1254,10 +1274,10 @@
   function discover(t,silent){
     if(discovered[t]) return;
     discovered[t]=1;
-    try{ localStorage.setItem('nyang_dex2', JSON.stringify(Object.keys(discovered).map(Number))); }catch(e){}
+    try{ localStorage.setItem('nyang_dex3', JSON.stringify(Object.keys(discovered).map(Number))); }catch(e){}
     renderChainCell(t);
     if(!silent){
-      floaters.push({x:W/2,y:H*0.28,t:0,txt:'✨ 새 냥이 발견: '+TIERS[t].name+'!',big:true,gold:true});
+      floaters.push({x:W/2,y:camY+H*0.28,t:0,txt:'✨ 새 냥이 발견: '+TIERS[t].name+'!',big:true,gold:true});
       beep(880,0.08);
     }
   }
