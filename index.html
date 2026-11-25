@@ -304,21 +304,18 @@
 
   // ---- 고양이 종류(합치는 순서, 작은→큰). 모두 오리지널 디자인 ----
   var TIERS = [
-    {name:'아깽이', r:16,  base:'#f4e3c6', ear:'#f4e3c6', inner:'#f6b9bf', pat:'none'},
-    {name:'치즈',   r:22,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
-    {name:'하양',   r:29,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'none'},
-    {name:'초코',   r:37,  base:'#7a5139', ear:'#7a5139', inner:'#e0a292', pat:'none', dark:true},
-    {name:'삼색',   r:46,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
-    {name:'턱시도', r:56,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
-    {name:'젖소',   r:67,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
-    {name:'샴',     r:79,  base:'#efe3cf', ear:'#6b5245', inner:'#c9a79e', pat:'siamese'},
-    {name:'블루',   r:92,  base:'#93a0ad', ear:'#93a0ad', inner:'#c49aa0', pat:'none'},
-    {name:'페르시안',r:106, base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
+    {name:'아깽이', r:18,  base:'#f4e3c6', ear:'#f4e3c6', inner:'#f6b9bf', pat:'none'},
+    {name:'치즈',   r:24,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
+    {name:'삼색',   r:32,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
+    {name:'턱시도', r:42,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
+    {name:'젖소',   r:55,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
+    {name:'샴',     r:72,  base:'#efe3cf', ear:'#6b5245', inner:'#c9a79e', pat:'siamese'},
+    {name:'페르시안',r:95,  base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
     {name:'고등어', r:120, base:'#9aa4ae', ear:'#9aa4ae', inner:'#c49aa0', pat:'mackerel', stripe:'#3a434f', crown:true},
   ];
   var MAX = TIERS.length-1;
   // 합쳐서 '그 단계'가 만들어질 때 얻는 점수(단계가 오를수록 커짐)
-  function mergePoints(tierCreated){ return Math.round(10 * tierCreated*(tierCreated+1)/2); }
+  function mergePoints(tierCreated){ return Math.round(20 * tierCreated*(tierCreated+1)/2); }
 
   // ---- 색 유틸 ----
   function shade(hex, amt){ // amt<0 어둡게, >0 밝게
@@ -565,7 +562,8 @@
   var shakeAmt=0, dangerLevel=0, lastAlarm=0;
   var shockwaves=[], flashAmt=0, pendingBursts=[];   // 대폭발용: 충격파 · 섬광 · 연쇄 폭발 대기열
   var discovered={};
-  try{ var _dx=JSON.parse(localStorage.getItem('nyang_dex')||'[]'); for(var _di=0;_di<_dx.length;_di++) discovered[_dx[_di]]=1; }catch(e){}
+  try{ var _dx=JSON.parse(localStorage.getItem('nyang_dex2')||'[]'); for(var _di=0;_di<_dx.length;_di++) discovered[_dx[_di]]=1; }catch(e){}
+  try{ localStorage.removeItem('nyang_dex'); }catch(e){}   // 11단계 시절 도감은 번호가 달라 쓸 수 없다
   function comboMult(){ return Math.min(3, 1+(combo-1)*0.5); }
   function scoreMult(){ return (combo>1?comboMult():1) * (fever?1.5:1); }
   try{ best=parseInt(localStorage.getItem('nyang_best')||'0',10)||0; }catch(e){}
@@ -573,7 +571,7 @@
   var items={remove:0,swap:0,promote:0}, useMode=null, swapFirst=null;
   var GIFT_NAME={remove:'제거',swap:'교환',promote:'승급'}, GIFT_ICON={remove:'🧹',swap:'🔄',promote:'⭐'};
   var GIFT_DESC={remove:'고양이 하나를 없애요', swap:'두 고양이의 자리를 바꿔요', promote:'고양이를 한 단계 올려요'};
-  function rndTier(){ var w=[6,5,4,2,1], tot=18, x=Math.random()*tot, a=0; for(var i=0;i<w.length;i++){ a+=w[i]; if(x<a) return i; } return 0; }
+  function rndTier(){ var w=[7,5,3,1], tot=16, x=Math.random()*tot, a=0; for(var i=0;i<w.length;i++){ a+=w[i]; if(x<a) return i; } return 0; }
 
   var $score=document.getElementById('score'), $best=document.getElementById('best');
   var $next=document.getElementById('nextCv'), $nextNm=document.getElementById('nextNm'), nctx=$next.getContext('2d');
@@ -702,7 +700,7 @@
         floaters.push({x:mx,y:my-TIERS[t+1].r*0.6, t:0, txt:'+'+pts, big:t>=5});
         if(combo>=2) floaters.push({x:mx,y:my-TIERS[t+1].r*0.6-20, t:0, txt:'🔥 '+combo+'콤보 x'+comboMult().toFixed(1), big:false, gold:true});
         sparkle(mx,my,t+1);
-        shakeAmt=Math.min(10, shakeAmt+1.2+(t+1)*0.55);
+        shakeAmt=Math.min(10, shakeAmt+1.2+(t+1)*0.8);
         meow(t+1);
         if(t+1===MAX){
           floaters.push({x:W/2,y:H*0.4,t:0,txt:'👑 고등어 완성!',big:true,gold:true});
@@ -782,7 +780,7 @@
     c.closePath(); c.fill(); c.stroke();
     c.restore();
     // 얼굴 — 턱시도 냥이
-    drawCat(c, 0, 0, r, 5, 0);
+    drawCat(c, 0, 0, r, 3, 0);
     // 눈가리개
     c.fillStyle='#15151c';
     c.beginPath();
@@ -906,7 +904,7 @@
   function meow(tier){ // 귀여운 "냐~옹" — 큰 고양이일수록 낮은 음
     if(muted||!AC) return;
     try{
-      var base=920 - tier*52, t0=AC.currentTime;
+      var base=920 - tier*74, t0=AC.currentTime;
       var o=AC.createOscillator(), g=AC.createGain(), f=AC.createBiquadFilter();
       o.type='triangle'; f.type='bandpass'; f.frequency.value=base*1.5; f.Q.value=3.5;
       o.connect(f); f.connect(g); g.connect(AC.destination);
@@ -1017,16 +1015,16 @@
       for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat||b.__gone) continue;
         bs.push({x:Math.round(b.position.x*10)/10, y:Math.round(b.position.y*10)/10,
                  t:b.tier, a:Math.round(b.angle*100)/100}); }
-      localStorage.setItem('nyang_save', JSON.stringify({v:1, h:H, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
+      localStorage.setItem('nyang_save', JSON.stringify({v:2, h:H, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
       dirty=false;
     }catch(e){}
   }
   function tryRestore(){
     try{
       var s=localStorage.getItem('nyang_save'); if(!s) return false;
-      var d=JSON.parse(s); if(!d||d.v!==1||!d.bs||!d.bs.length) return false;
+      var d=JSON.parse(s); if(!d||d.v!==2||!d.bs||!d.bs.length) return false;   // 구버전(11단계) 저장본은 버린다
       setScore(Math.max(0,d.score|0));
-      cur=Math.min(4,Math.max(0,d.cur|0)); nxt=Math.min(4,Math.max(0,d.nxt|0));
+      cur=Math.min(3,Math.max(0,d.cur|0)); nxt=Math.min(3,Math.max(0,d.nxt|0));
       if(d.it){ items.remove=Math.max(0,d.it.remove|0); items.swap=Math.max(0,d.it.swap|0); items.promote=Math.max(0,d.it.promote|0); }
       feverGauge=Math.max(0,Math.min(FEVER_NEED-1,d.fg|0));
       // 다른 기기(판 높이가 다른 화면)에서 저장한 판이면 바닥 기준으로 통째로 옮긴다.
@@ -1256,7 +1254,7 @@
   function discover(t,silent){
     if(discovered[t]) return;
     discovered[t]=1;
-    try{ localStorage.setItem('nyang_dex', JSON.stringify(Object.keys(discovered).map(Number))); }catch(e){}
+    try{ localStorage.setItem('nyang_dex2', JSON.stringify(Object.keys(discovered).map(Number))); }catch(e){}
     renderChainCell(t);
     if(!silent){
       floaters.push({x:W/2,y:H*0.28,t:0,txt:'✨ 새 냥이 발견: '+TIERS[t].name+'!',big:true,gold:true});
