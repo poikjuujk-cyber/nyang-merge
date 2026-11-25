@@ -524,6 +524,7 @@
   var combo=0, comboExpire=0, COMBO_WINDOW=2500;
   var FEVER_NEED=10, feverGauge=0, fever=false, feverEnd=0;
   var shakeAmt=0, dangerLevel=0, lastAlarm=0;
+  var shockwaves=[], flashAmt=0, pendingBursts=[];   // 대폭발용: 충격파 · 섬광 · 연쇄 폭발 대기열
   var discovered={};
   try{ var _dx=JSON.parse(localStorage.getItem('nyang_dex')||'[]'); for(var _di=0;_di<_dx.length;_di++) discovered[_dx[_di]]=1; }catch(e){}
   function comboMult(){ return Math.min(3, 1+(combo-1)*0.5); }
@@ -675,25 +676,33 @@
         sparkle(mx,my,t+1);
         shakeAmt=Math.min(10, shakeAmt+1.2+(t+1)*0.55);
         meow(t+1);
-        if(t+1===MAX){ floaters.push({x:W/2,y:H*0.4,t:0,txt:'👑 고등어 완성!',big:true,gold:true}); fanfare(); }
+        if(t+1===MAX){
+          floaters.push({x:W/2,y:H*0.4,t:0,txt:'👑 고등어 완성!',big:true,gold:true});
+          floaters.push({x:W/2,y:H*0.4+30,t:0,txt:'고등어 둘을 만나게 하면 💥',big:false,gold:true});
+          fanfare();
+        }
       } else {
-        // 👑 고등어 + 고등어 = 츄르 대폭발! 보드의 모든 냥이가 터지며 전부 보너스 점수로
-        var bpts=Math.round(5000*mult);
-        var all2=Composite.allBodies(world);
+        // 👑 고등어 + 고등어 = 츄르 대폭발! 판 전체가 연쇄로 터지고 점수를 쓸어 담는다
+        var bpts=Math.round(10000*mult);
+        var all2=Composite.allBodies(world), hit=[];
         for(var k2=0;k2<all2.length;k2++){ var cb=all2[k2];
           if(cb.isCat && !cb.__gone){
             cb.__gone=true;
             if(cb.gift) awardGift(cb.gift, cb.position.x, cb.position.y);
-            burst(cb.position.x,cb.position.y,TIERS[cb.tier].base,cb.circleRadius);
-            bpts+=mergePoints(cb.tier+1);
+            hit.push({x:cb.position.x, y:cb.position.y, col:TIERS[cb.tier].base, r:cb.circleRadius,
+                      d:Math.hypot(cb.position.x-mx, cb.position.y-my)});
+            bpts+=mergePoints(cb.tier+1)*3;     // 휩쓸린 냥이는 평소의 3배로 환산
             Composite.remove(world,cb);
           } }
+        // 폭심에서 가까운 냥이부터 차례로 터지게 예약한다(한꺼번에 터지면 밋밋하다)
+        hit.sort(function(a,b){ return a.d-b.d; });
+        for(var k3=0;k3<hit.length;k3++){ hit[k3].wait=k3*2.4; pendingBursts.push(hit[k3]); }
         swapFirst=null; updateItemUI();
         setScore(score+bpts);
         bigExplosion(mx,my);
-        floaters.push({x:W/2,y:H*0.35,t:0,txt:'🐟 츄르 대폭발! 판 클리어!',big:true,gold:true});
-        floaters.push({x:W/2,y:H*0.35+30,t:0,txt:'+'+fmt(bpts),big:true,gold:true});
-        fanfare(); shakeAmt=14;
+        floaters.push({x:W/2,y:H*0.30,t:0,txt:'🐟💥 츄르 대폭발!!',big:true,gold:true});
+        floaters.push({x:W/2,y:H*0.30+32,t:0,txt:'판 클리어 +'+fmt(bpts),big:true,gold:true});
+        fanfare(); boom(); shakeAmt=22;
       }
     }
   }
@@ -714,13 +723,22 @@
       particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.6, life:1.15, col:'#fff', sz:2.4+Math.random()*1.6, txt:em[Math.floor(Math.random()*em.length)]}); }
   }
   function bigExplosion(x,y){ // 고등어 둘 합체 — 츄르 대폭발
+    // '동작 줄이기'를 켠 사람에겐 섬광을 약하게, 충격파도 한 겹만 (눈부심 배려)
+    flashAmt = reduce ? 0.22 : 1;
+    shockwaves.push({x:x,y:y,t:0});
     if(reduce) return;
-    var cols=['#f4c542','#ef7d57','#9aa4ae','#ffffff'];
-    for(var i=0;i<46;i++){ var a=Math.random()*7, sp=2+Math.random()*5;
-      particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2, life:1.3, col:cols[i%4], sz:2.5+Math.random()*3.5}); }
-    var em=['🐟','✨','👑','💥','💛'];
-    for(var j=0;j<10;j++){ var a2=Math.random()*7, sp2=1.5+Math.random()*3;
-      particles.push({x:x,y:y,vx:Math.cos(a2)*sp2,vy:Math.sin(a2)*sp2-2.5, life:1.45, col:'#fff', sz:3+Math.random()*2, txt:em[j%em.length]}); }
+    shockwaves.push({x:x,y:y,t:-0.20});             // 충격파 3겹
+    shockwaves.push({x:x,y:y,t:-0.40});
+    var cols=['#f4c542','#ef7d57','#9aa4ae','#ffffff','#ff8a5c'];
+    for(var i=0;i<110;i++){ var a=Math.random()*7, sp=2+Math.random()*8;
+      particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2.4, life:1.5, col:cols[i%5], sz:2.5+Math.random()*4.5}); }
+    var em=['🐟','✨','👑','💥','💛','🎉'];
+    for(var j=0;j<26;j++){ var a2=Math.random()*7, sp2=1.5+Math.random()*4.5;
+      particles.push({x:x,y:y,vx:Math.cos(a2)*sp2,vy:Math.sin(a2)*sp2-3, life:1.7, col:'#fff', sz:3+Math.random()*2.6, txt:em[j%em.length]}); }
+    for(var k=0;k<22;k++){                         // 하늘에서 츄르(생선)가 쏟아진다
+      particles.push({x:Math.random()*W, y:-20-Math.random()*160,
+        vx:(Math.random()-0.5)*1.2, vy:2.2+Math.random()*3.4, life:2.2, col:'#fff',
+        sz:3+Math.random()*2, txt:'🐟'}); }
   }
   function startFever(){
     fever=true; feverEnd=performance.now()+15000; feverGauge=0;
@@ -776,6 +794,24 @@
       g.gain.exponentialRampToValueAtTime(vol,t+0.012);
       g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
       o.start(t); o.stop(t+dur+0.03);
+    }catch(e){}
+  }
+  function boom(){     // 쿵! — 저음 충격 + 노이즈 버스트
+    if(muted||!AC) return;
+    try{
+      var t0=AC.currentTime, sr=AC.sampleRate, dur=0.9;
+      var buf=AC.createBuffer(1, Math.floor(sr*dur), sr), ch=buf.getChannelData(0);
+      for(var i=0;i<ch.length;i++){ var k=i/ch.length; ch[i]=(Math.random()*2-1)*Math.pow(1-k,2.6); }
+      var src=AC.createBufferSource(); src.buffer=buf;
+      var lp=AC.createBiquadFilter(); lp.type='lowpass';
+      lp.frequency.setValueAtTime(1800,t0); lp.frequency.exponentialRampToValueAtTime(140,t0+dur);
+      var g=AC.createGain(); g.gain.setValueAtTime(0.42,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      src.connect(lp); lp.connect(g); g.connect(AC.destination); src.start(t0);
+      var o=AC.createOscillator(), og=AC.createGain(); o.type='sine';
+      o.frequency.setValueAtTime(150,t0); o.frequency.exponentialRampToValueAtTime(36,t0+0.5);
+      og.gain.setValueAtTime(0.40,t0); og.gain.exponentialRampToValueAtTime(0.0001,t0+0.62);
+      o.connect(og); og.connect(AC.destination); o.start(t0); o.stop(t0+0.68);
     }catch(e){}
   }
   function fanfare(){ // 축하 아르페지오
@@ -888,6 +924,7 @@
     for(var i=0;i<bodies.length;i++){ if(bodies[i].isCat) Composite.remove(world,bodies[i]); }
     particles=[]; floaters=[]; toMerge=[]; over=false; setScore(0);
     combo=0; comboExpire=0; fever=false; feverGauge=0; shakeAmt=0; dangerLevel=0;
+    shockwaves=[]; flashAmt=0; pendingBursts=[];
     useMode=null; swapFirst=null;
     try{ localStorage.removeItem('nyang_save'); }catch(e){}
     dirty=false;
@@ -965,6 +1002,20 @@
       if(pt.txt){ ctx.font=Math.round(pt.sz*6)+'px sans-serif'; ctx.textAlign='center'; ctx.fillText(pt.txt,pt.x,pt.y); }
       else { ctx.fillStyle=pt.col; ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.sz,0,7); ctx.fill(); }
       ctx.globalAlpha=1; }
+    // 충격파 고리
+    for(var sw=0; sw<shockwaves.length; sw++){
+      var S=shockwaves[sw]; if(S.t<=0) continue;
+      var rr=S.t*Math.max(W,H)*1.05;
+      ctx.globalAlpha=Math.max(0,1-S.t)*0.8;
+      ctx.strokeStyle='#fff3c4'; ctx.lineWidth=Math.max(2, 18*(1-S.t));
+      ctx.beginPath(); ctx.arc(S.x,S.y,rr,0,7); ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    // 섬광 (화면 전체가 번쩍)
+    if(flashAmt>0.01){
+      ctx.globalAlpha=Math.min(1,flashAmt)*0.8; ctx.fillStyle='#fffbe8';
+      ctx.fillRect(-20,-20,W+40,H+40); ctx.globalAlpha=1;
+    }
     // 점수 플로터
     for(var f=floaters.length-1;f>=0;f--){ var fl=floaters[f];
       ctx.globalAlpha=Math.max(0,1-fl.t); ctx.font=(fl.big?'bold 22px ':'bold 15px ')+"'Jua',sans-serif";
@@ -1000,6 +1051,20 @@
     var ts=dt/STEP;   // 120Hz에서 연출만 2배 빨라지지 않게 프레임 길이에 비례시킨다
     for(var p=particles.length-1;p>=0;p--){ var pt=particles[p]; pt.x+=pt.vx*ts; pt.y+=pt.vy*ts; pt.vy+=0.14*ts; pt.life-=0.03*ts; if(pt.life<=0) particles.splice(p,1); }
     for(var f=floaters.length-1;f>=0;f--){ var fl=floaters[f]; fl.t+=0.016*ts; fl.y-=0.5*ts; if(fl.t>=1) floaters.splice(f,1); }
+    // 예약된 연쇄 폭발을 차례로 터뜨린다
+    for(var pb=pendingBursts.length-1; pb>=0; pb--){
+      var P=pendingBursts[pb]; P.wait-=ts;
+      if(P.wait<=0){
+        burst(P.x,P.y,P.col,P.r);
+        if(P.r>50) shakeAmt=Math.min(24, shakeAmt+2);
+        pendingBursts.splice(pb,1);
+      }
+    }
+    for(var sv=shockwaves.length-1; sv>=0; sv--){
+      shockwaves[sv].t+=0.042*ts;
+      if(shockwaves[sv].t>1.15) shockwaves.splice(sv,1);
+    }
+    if(flashAmt>0.01) flashAmt*=Math.pow(0.86, ts); else flashAmt=0;
     if(combo && now>comboExpire) combo=0;
     if(fever && now>feverEnd){ fever=false; floaters.push({x:W/2,y:H*0.3,t:0,txt:'피버 종료!',big:false}); }
     if(shakeAmt>0.1) shakeAmt*=0.86; else shakeAmt=0;
