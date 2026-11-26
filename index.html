@@ -374,16 +374,16 @@
 
   // ---- 고양이 종류(합치는 순서, 작은→큰). 모두 오리지널 디자인 ----
   var TIERS = [
-    {name:'아깽이', r:18,  base:'#f4e3c6', ear:'#f4e3c6', inner:'#f6b9bf', pat:'none'},
-    {name:'치즈',   r:22,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
-    {name:'하양',   r:26,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'none'},
-    {name:'삼색',   r:31,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
-    {name:'초코',   r:37,  base:'#7a5139', ear:'#7a5139', inner:'#e0a292', pat:'none', dark:true},
-    {name:'턱시도', r:45,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
-    {name:'젖소',   r:54,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
-    {name:'샴',     r:64,  base:'#efe3cf', ear:'#6b5245', inner:'#c9a79e', pat:'siamese'},
-    {name:'페르시안',r:77,  base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
-    {name:'고등어', r:93,  base:'#9aa4ae', ear:'#9aa4ae', inner:'#c49aa0', pat:'mackerel', stripe:'#3a434f', crown:true},
+    {name:'아깽이', r:20,  base:'#f4e3c6', ear:'#f4e3c6', inner:'#f6b9bf', pat:'none'},
+    {name:'치즈',   r:24,  base:'#f3a85c', ear:'#f3a85c', inner:'#f6b9bf', pat:'tabby', stripe:'#d87f36'},
+    {name:'하양',   r:28,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'none'},
+    {name:'삼색',   r:34,  base:'#fcfaf4', ear:'#f3a85c', inner:'#f6b9bf', pat:'calico'},
+    {name:'초코',   r:40,  base:'#7a5139', ear:'#7a5139', inner:'#e0a292', pat:'none', dark:true},
+    {name:'턱시도', r:48,  base:'#2f2b33', ear:'#2f2b33', inner:'#7d5f67', pat:'tuxedo', dark:true},
+    {name:'젖소',   r:57,  base:'#fcfaf4', ear:'#fcfaf4', inner:'#f6b9bf', pat:'cow'},
+    {name:'샴',     r:67,  base:'#efe3cf', ear:'#6b5245', inner:'#c9a79e', pat:'siamese'},
+    {name:'페르시안',r:80,  base:'#f1e0bf', ear:'#f1e0bf', inner:'#f6b9bf', pat:'fluffy'},
+    {name:'고등어', r:95,  base:'#9aa4ae', ear:'#9aa4ae', inner:'#c49aa0', pat:'mackerel', stripe:'#3a434f', crown:true},
   ];
   var MAX = TIERS.length-1;
   // 합쳐서 '그 단계'가 만들어질 때 얻는 점수(단계가 오를수록 커짐)
@@ -634,7 +634,7 @@
   function makeCat(x,y,t){
     var b=Bodies.circle(x,y,TIERS[t].r,{restitution:PHYS.rest, friction:PHYS.fric,
       frictionStatic:PHYS.fricS, frictionAir:PHYS.air, density:0.0016, slop:0.02});
-    b.isCat=true; b.tier=t; b.merging=false; b.overT=0; b.spawnT=0; b.pop=0;
+    b.isCat=true; b.tier=t; b.merging=false; b.overT=0; b.spawnT=0; b.pop=0; b.gift=null;
     return b;
   }
 
@@ -682,6 +682,7 @@
       var r=TIERS[cur].r; var px=Math.max(r+2, Math.min(W-r-2, x));
       playStarted=true;
       var b=makeCat(px, camY+SPAWNY, cur); Composite.add(world,b);
+      maybeGift(b);
       cur=nxt; nxt=rndTier(); drawNext();
       canDrop=false; setTimeout(function(){ canDrop=true; }, 340);
       beep(260+cur*12, 0.05);
@@ -690,6 +691,22 @@
   }
 
   // ---- 아이템 파밍: 낮은 확률로 보드의 냥이에 🎁 부여(동시 최대 2개) ----
+  var GIFT_RATE=0.01;            // 냥이를 떨굴 때마다 1% (피버 중에는 2배)
+  var GIFT_KINDS=['remove','swap','promote'];
+  function maybeGift(justDropped){
+    if(Math.random() >= GIFT_RATE*(fever?2:1)) return;
+    var all=Composite.allBodies(world), pool=[], held=0, i, b;
+    for(i=0;i<all.length;i++){ b=all[i];
+      if(!b.isCat || b.__gone) continue;
+      if(b.gift){ held++; continue; }
+      if(b!==justDropped) pool.push(b);     // 방금 떨군 냥이 말고, 이미 쌓인 냥이에 붙인다
+    }
+    if(held>=2 || !pool.length) return;     // 동시에 최대 2개
+    var c=pool[Math.floor(Math.random()*pool.length)];
+    c.gift=GIFT_KINDS[Math.floor(Math.random()*GIFT_KINDS.length)];
+    floaters.push({x:c.position.x, y:c.position.y-c.circleRadius-12, t:0, txt:'🎁', big:true, gold:true});
+    beep(760,0.07);
+  }
   function awardGift(g){
     items[g]=(items[g]||0)+1; updateItemUI(); saveSoon();
     floaters.push({x:W/2, y:camY+H*0.45, t:0, txt:GIFT_ICON[g]+' '+GIFT_NAME[g]+' 획득!', big:true, gold:true});
@@ -706,7 +723,7 @@
     if(useMode==='remove') h.textContent='🧹 없앨 고양이를 탭하세요 (버튼을 다시 누르면 취소)';
     else if(useMode==='swap') h.textContent= swapFirst ? '🔄 자리를 바꿀 "상대" 고양이를 탭하세요' : '🔄 첫 번째 고양이를 탭하세요';
     else if(useMode==='promote') h.textContent='⭐ 승급시킬 고양이를 탭하세요';
-    else h.textContent='탭한 자리로 냥이가 떨어져요 · 👑고등어 둘을 터뜨리면 괴도냥이가 아이템을 줘요!';
+    else h.textContent='탭한 자리로 냥이가 떨어져요 · 🎁 붙은 냥이를 합치면 아이템 · 👑고등어 둘이면 괴도냥이!';
     h.classList.toggle('idle', !useMode);   // 좁은 화면에선 아이템 쓸 때만 안내를 띄움
   }
   function hitCat(lx,ly){
@@ -767,6 +784,8 @@
       if(a.__gone||b.__gone) continue;
       var mx=(a.position.x+b.position.x)/2, my=(a.position.y+b.position.y)/2, t=a.tier;
       a.__gone=b.__gone=true; Composite.remove(world,a); Composite.remove(world,b);
+      if(a.gift) awardGift(a.gift);        // 🎁 붙은 냥이를 합치면 아이템 획득
+      if(b.gift) awardGift(b.gift);
       burst(mx,my,TIERS[t].base, TIERS[t].r);
       if(swapFirst && (swapFirst===a||swapFirst===b)){ swapFirst=null; updateItemUI(); }
       // 콤보: 짧은 시간 안에 연속 머지면 배수 상승
@@ -1098,15 +1117,15 @@
       var bs=[], all=Composite.allBodies(world);
       for(var i=0;i<all.length;i++){ var b=all[i]; if(!b.isCat||b.__gone) continue;
         bs.push({x:Math.round(b.position.x*10)/10, y:Math.round(b.position.y*10)/10,
-                 t:b.tier, a:Math.round(b.angle*100)/100}); }
-      localStorage.setItem('nyang_save', JSON.stringify({v:3, h:WORLD, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
+                 t:b.tier, a:Math.round(b.angle*100)/100, g:b.gift||0}); }
+      localStorage.setItem('nyang_save', JSON.stringify({v:4, h:WORLD, score:score, cur:cur, nxt:nxt, it:items, fg:feverGauge, bs:bs}));
       dirty=false;
     }catch(e){}
   }
   function tryRestore(){
     try{
       var s=localStorage.getItem('nyang_save'); if(!s) return false;
-      var d=JSON.parse(s); if(!d||d.v!==3||!d.bs||!d.bs.length) return false;   // 좌표계가 바뀐 구버전 저장본은 버린다
+      var d=JSON.parse(s); if(!d||d.v!==4||!d.bs||!d.bs.length) return false;   // 냥이 크기가 바뀐 구버전 저장본은 버린다(겹친다)
       setScore(Math.max(0,d.score|0));
       cur=Math.min(3,Math.max(0,d.cur|0)); nxt=Math.min(3,Math.max(0,d.nxt|0));
       if(d.it){ items.remove=Math.max(0,d.it.remove|0); items.swap=Math.max(0,d.it.swap|0); items.promote=Math.max(0,d.it.promote|0); }
@@ -1120,6 +1139,7 @@
         // 위로 넘치는 냥이는 억지로 밀어넣지 않는다. 천장이 없으니 화면 위에서 자연히 떨어져 쌓인다.
         var ey=Math.min(WORLD-TIERS[e.t].r-2, e.y+dy);
         var b=makeCat(e.x,ey,e.t); Body.setAngle(b,e.a||0);
+        if(GIFT_KINDS.indexOf(e.g)>=0) b.gift=e.g;
         Composite.add(world,b); }
       discover(cur,true); drawNext(); updateCam(1,true); return true;
     }catch(e){ return false; }
@@ -1192,6 +1212,19 @@
       // 그림자
       ctx.fillStyle='rgba(120,80,40,.12)'; ctx.beginPath(); ctx.ellipse(b.position.x, b.position.y+b.circleRadius*0.82, b.circleRadius*0.8, b.circleRadius*0.22,0,0,7); ctx.fill();
       ctx.save(); ctx.translate(b.position.x,b.position.y); ctx.scale(s,s); drawCat(ctx,0,0,b.circleRadius,b.tier,b.angle); ctx.restore();
+      if(b.gift && !b.__gone){       // 🎁 가 붙은 냥이 — 합치면 아이템
+        // 어떤 냥이에 붙었는지 한눈에 보여야 한다. 흰 원을 깔아 어떤 털색 위에서도 읽히게.
+        var gs=Math.max(24, Math.round(b.circleRadius*0.62));
+        var bob=Math.sin(nowR/260 + b.id)*2;                      // 살짝 둥실거린다
+        var gx=b.position.x, gy=b.position.y-b.circleRadius-gs*0.42+bob;
+        ctx.fillStyle='rgba(255,252,240,.94)';
+        ctx.beginPath(); ctx.arc(gx,gy,gs*0.62,0,7); ctx.fill();
+        ctx.strokeStyle='#f4c542'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(gx,gy,gs*0.62,0,7); ctx.stroke();
+        ctx.font=gs+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🎁', gx, gy+1);
+        ctx.textBaseline='alphabetic';
+      }
       if(swapFirst===b && !b.__gone){ // 교환 1번 선택 표시
         ctx.strokeStyle='#ef7d57'; ctx.lineWidth=3; ctx.setLineDash([6,5]);
         ctx.beginPath(); ctx.arc(b.position.x,b.position.y,b.circleRadius+6,0,7); ctx.stroke(); ctx.setLineDash([]);
