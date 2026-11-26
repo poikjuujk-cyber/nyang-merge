@@ -499,11 +499,12 @@
   var engine=Engine.create(); engine.gravity.y=PHYS.grav;
   var world=engine.world;
   var WALL=60, GY=74, SPAWNY=40;
-  // 놀이판은 화면보다 세로로 길다. 쌓일수록 카메라가 위로 올라가며 더 넓은 공간을 보여준다.
-  var WORLD=Math.round(H*1.75);      // 월드 전체 높이 (바닥은 y=WORLD)
-  var camY=WORLD-H;                  // 화면에 보이는 구간의 위쪽 월드 좌표
-  var CAM_MARGIN=210;                // 가장 높은 냥이 위로 이만큼은 늘 비워 둔다
-  function worldH(){ return Math.round(H*1.75); }
+  // 놀이판은 화면보다 '살짝' 길다. 평소엔 바닥이 화면 아래에 붙어 보이고,
+  // 더미가 화면 위까지 쌓였을 때만 카메라가 그만큼 올라가 게임오버선을 늦춘다.
+  function worldH(){ return H + Math.round(H*0.22); }
+  var WORLD=worldH();                // 월드 전체 높이 (바닥은 y=WORLD)
+  var camY=WORLD-H;                  // 화면에 보이는 구간의 위쪽 월드 좌표 (기본: 바닥에 붙음)
+  var CAM_MARGIN=150;                // 쌓인 더미 위로 이만큼 남으면 그때부터 카메라가 따라 올라간다
   function addWalls(){
     var opt={isStatic:true, friction:0.6, restitution:0.0};
     Composite.add(world,[
@@ -512,11 +513,16 @@
       Bodies.rectangle(W/2, WORLD+WALL/2, W*2, WALL, opt),          // 바닥
     ]);
   }
-  // 가장 높이 쌓인 냥이를 따라 카메라를 올린다(내려올 때도 부드럽게)
+  // 바닥에 '자리 잡은' 더미의 높이만 따라 카메라를 올린다(내려올 때도 부드럽게).
+  // 떨어지는 중인 냥이와 갓 떨군 냥이는 제외한다 — 드롭 지점이 화면 위쪽이라
+  // 그것까지 세면 한 마리 떨굴 때마다 카메라가 끌려 올라가 바닥이 안 보이게 된다.
   function updateCam(ts, snap){
-    var top=WORLD, all=Composite.allBodies(world);
+    var top=WORLD, all=Composite.allBodies(world), tnow=performance.now();
     for(var i=0;i<all.length;i++){ var b=all[i];
-      if(b.isCat && !b.__gone) top=Math.min(top, b.position.y-b.circleRadius); }
+      if(!b.isCat || b.__gone) continue;
+      if(Math.hypot(b.velocity.x,b.velocity.y)>=0.9) continue;   // 아직 움직이는 중
+      if(tnow-b.spawnStamp<600) continue;                        // 갓 떨군 냥이
+      top=Math.min(top, b.position.y-b.circleRadius); }
     var want=Math.max(0, Math.min(WORLD-H, top-CAM_MARGIN));
     if(snap) camY=want;
     else camY += (want-camY)*Math.min(1, 0.07*(ts||1));
@@ -540,7 +546,7 @@
           // 바닥 기준으로 '평행이동'한다. 비례로 줄이면 쌓인 더미가 서로 파고들어
           // 의도치 않은 연쇄 머지나 즉시 게임오버가 난다.
           Body.setPosition(b, {x:b.position.x,
-            y:Math.min(H-b.circleRadius-2, b.position.y+dy)});
+            y:Math.min(WORLD-b.circleRadius-2, b.position.y+dy)});
           Body.setVelocity(b, {x:0, y:0});
         }
       }
