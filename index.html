@@ -26,7 +26,10 @@
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap"></noscript>
 <style>
   /* 레이아웃: 한 화면 세로 게임 — 상단 점수 / 가운데 상자(캔버스) / 하단 다음·컨트롤·도감띠 */
   :root{
@@ -66,7 +69,8 @@
     padding-bottom:max(10px, env(safe-area-inset-bottom,0px));
     display:flex; flex-direction:column; align-items:center; gap:10px; box-sizing:border-box;
   }
-  .top{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .top{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+        flex-wrap:wrap; row-gap:6px;}   /* 글꼴을 키워 쓰는 사람도 점수가 잘리지 않게 */
   .brand{ font-family:var(--font-display); font-size:1.5rem; letter-spacing:.5px; color:var(--fg); line-height:1;}
   .brand small{ display:block; font-family:var(--font-body); font-size:.62rem; font-weight:600; color:var(--muted); letter-spacing:2px; margin-top:3px;}
   .scores{ display:flex; gap:8px; }
@@ -79,6 +83,9 @@
   .board{ position:relative; width:min(100%, calc((100vh - 298px) * var(--arw)), 586px); aspect-ratio:var(--ar); height:auto;
           border-radius:20px; overflow:hidden; box-shadow:0 10px 26px var(--shadow), inset 0 0 0 2px rgba(255,255,255,.04);}
   canvas#game{ display:block; width:100%; height:100%; cursor:pointer; touch-action:none;}
+  .loadfail{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; font-family:var(--font-display); font-size:1.2rem; line-height:1.9; color:var(--muted); text-align:center; padding:20px;}
+  .loadfail small{ font-family:var(--font-body); font-size:.75rem;}
 
   .over{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
          background:rgba(30,20,12,.62); color:#fff8ec; border-radius:20px; backdrop-filter:blur(3px); text-align:center; padding:20px;}
@@ -183,6 +190,31 @@
     .next{ padding:4px 8px 4px 6px;}
   }
 
+  /* 가로로 돌린 폰: 폭은 넓은데 높이가 없다. 세로 폰과 같은 축소 규칙을 되살린다.
+     (760px 블록 뒤에 와야 .chain .hd 같은 선언을 이길 수 있다) */
+  @media (min-width:760px) and (max-height:480px){
+    html,body{ height:100dvh; }
+    .wrap{ height:100dvh; gap:6px;}
+    /* 판 너비는 100vh(주소창 포함)가 아니라 실제 보이는 높이로 잰다 */
+    .board{ width:min(calc((100dvh - 40px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * var(--arw)), calc(100vw - 430px), 700px); }
+    .hint.idle{ display:none;}            /* 아이템 조작 안내는 남겨 둔다 */
+    .chain .hd{ display:none;}
+    .chain{ padding:4px 6px;}
+    .chain canvas{ width:26px; height:26px;}
+    .chain .cell.goal canvas{ width:32px; height:32px;}
+    .brand{ font-size:1.1rem;}
+    .brand small{ display:none;}
+    .score-card{ padding:4px 10px; min-width:60px;}
+    .score-card .val{ font-size:1.1rem;}
+    .controls{ gap:6px;}
+    button.icon, button.item{ width:36px; height:36px;}
+    .minis button.icon{ width:34px; height:34px;}
+    .next canvas{ width:32px; height:32px;}
+    .next{ padding:4px 8px 4px 6px;}
+    /* 글꼴 로딩 등으로 몇 px이 더 필요해지는 경우를 위한 안전망 */
+    .side{ gap:6px; max-height:100dvh; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  }
+
   /* 랭킹 오버레이 */
   .rankwrap{ position:fixed; inset:0; background:rgba(25,16,9,.55); display:flex; align-items:center; justify-content:center; z-index:30;
     padding-left:max(16px, env(safe-area-inset-left,0px));
@@ -276,7 +308,7 @@
   <div class="controls">
     <div class="next">
       <div class="lbl">다음</div>
-      <canvas id="nextCv" width="42" height="42"></canvas>
+      <canvas id="nextCv" width="84" height="84"></canvas>
       <div class="nm" id="nextNm">—</div>
     </div>
     <div class="items">
@@ -321,9 +353,23 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <script>
+  // 첫 CDN 이 막혔으면 다른 CDN 에서 한 번 더 받는다. (파서가 멈춘 채 동기 로드)
+  if(!window.Matter) document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></scr'+'ipt>');
+</script>
+<script>
 (function(){
   "use strict";
   var M = window.Matter;
+  if(!M){
+    // 두 곳 다 실패. 빈 상자만 보여 주는 대신 사정을 알린다.
+    var hb=document.getElementById('hint');
+    if(hb) hb.textContent='게임 엔진을 불러오지 못했어요. 네트워크를 확인하고 새로고침해 주세요.';
+    var bd=document.querySelector('.board');
+    if(bd){ var ms=document.createElement('div'); ms.className='loadfail';
+      ms.innerHTML='😿<br>불러오기 실패<br><small>네트워크를 확인하고 새로고침해 주세요</small>';
+      bd.appendChild(ms); }
+    return;
+  }
   var Engine=M.Engine, Bodies=M.Bodies, Composite=M.Composite, Events=M.Events, Body=M.Body;
 
   // ---- 고양이 종류(합치는 순서, 작은→큰). 모두 오리지널 디자인 ----
@@ -627,7 +673,7 @@
   $best.textContent=fmt(best);
 
   function drawNext(){
-    nctx.setTransform(1,0,0,1,0,0); nctx.clearRect(0,0,42,42);
+    nctx.setTransform(2,0,0,2,0,0); nctx.clearRect(0,0,42,42);   // 2배 백버퍼(유저 좌표는 그대로 42)
     var r=Math.min(18, TIERS[nxt].r); nctx.save(); nctx.translate(21,23);
     var sc=r/TIERS[nxt].r*0.95; // 작게 보여주기 위해 스케일
     nctx.scale(18/TIERS[nxt].r, 18/TIERS[nxt].r);
@@ -1151,7 +1197,7 @@
     // 고양이들
     var bodies=Composite.allBodies(world);
     for(var i=0;i<bodies.length;i++){ var b=bodies[i]; if(!b.isCat) continue;
-      var s=1; if(b.pop>0){ s=1+0.22*b.pop; b.pop*=0.80; if(b.pop<0.02) b.pop=0; }
+      var s=1; if(b.pop>0) s=1+0.22*b.pop;   // 감쇠는 loop() 에서 시간 기준으로 한다
       // 그림자
       ctx.fillStyle='rgba(120,80,40,.12)'; ctx.beginPath(); ctx.ellipse(b.position.x, b.position.y+b.circleRadius*0.82, b.circleRadius*0.8, b.circleRadius*0.22,0,0,7); ctx.fill();
       ctx.save(); ctx.translate(b.position.x,b.position.y); ctx.scale(s,s); drawCat(ctx,0,0,b.circleRadius,b.tier,b.angle); ctx.restore();
@@ -1240,7 +1286,13 @@
     if(flashAmt>0.01) flashAmt*=Math.pow(0.86, ts); else flashAmt=0;
     if(combo && now>comboExpire) combo=0;
     if(fever && now>feverEnd){ fever=false; floaters.push({x:W/2,y:camY+H*0.3,t:0,txt:'피버 종료!',big:false}); }
-    if(shakeAmt>0.1) shakeAmt*=0.86; else shakeAmt=0;
+    if(shakeAmt>0.1) shakeAmt*=Math.pow(0.86, ts); else shakeAmt=0;
+    // 머지 팝(냥이가 뽕 하고 커지는 연출)도 같은 규약으로. render() 안에서 줄이면
+    // 프레임 수에 따라 길이가 달라지므로 여기서 시간 기준으로 감쇠시킨다.
+    var popB=Composite.allBodies(world);
+    for(var pi=0; pi<popB.length; pi++){ var pbd=popB[pi];
+      if(!pbd.isCat || !(pbd.pop>0)) continue;
+      pbd.pop*=Math.pow(0.80, ts); if(pbd.pop<0.02) pbd.pop=0; }
     if(!over) updateCam(ts);
     updateFeverBar(now);
     if(dirty && now-lastSave>2500){ lastSave=now; saveNow(); }
@@ -1361,9 +1413,20 @@
       return h;
     }
     function toJson(res){ if(!res.ok) throw new Error('http '+res.status); return res.json(); }
+    // 전파가 약하면 응답이 영영 안 올 수 있다. 정해진 시간이 지나면 스스로 끊는다.
+    function tfetch(u, o, ms){
+      var c, t;
+      try{ c=new AbortController(); }catch(e){ return fetch(u, o); }   // 아주 옛 브라우저면 그냥 간다
+      var opt={}; if(o) for(var k in o) opt[k]=o[k];
+      opt.signal=c.signal;
+      t=setTimeout(function(){ try{ c.abort(); }catch(e){} }, ms||8000);
+      return fetch(u, opt).then(
+        function(r){ clearTimeout(t); return r; },
+        function(e){ clearTimeout(t); throw e; });
+    }
     return {
       top:function(n){
-        return fetch(base+'?select=id,name,score&order=score.desc&limit='+n, {headers:hdr()})
+        return tfetch(base+'?select=id,name,score&order=score.desc&limit='+n, {headers:hdr()}, 8000)
           .then(toJson).then(function(rows){
             return (rows||[]).map(function(r){
               return {id:String(r.id), name:String(r.name||'냥이'), score:Number(r.score)||0};
@@ -1371,17 +1434,17 @@
           });
       },
       submit:function(name,score){
-        return fetch(base, {method:'POST',
+        return tfetch(base, {method:'POST',
           headers:hdr({'Content-Type':'application/json', Prefer:'return=representation'}),
-          body:JSON.stringify({name:name, score:score})})
+          body:JSON.stringify({name:name, score:score})}, 12000)
           .then(toJson).then(function(rows){
             var id=(rows&&rows[0])?String(rows[0].id):''; rememberRow(id); return id;
           });
       },
       rankOf:function(score){
         // 나보다 높은 점수의 개수만 세기 — Content-Range 헤더로 총개수를 받는다
-        return fetch(base+'?select=id&score=gt.'+encodeURIComponent(score),
-            {headers:hdr({Prefer:'count=exact', Range:'0-0'})})
+        return tfetch(base+'?select=id&score=gt.'+encodeURIComponent(score),
+            {headers:hdr({Prefer:'count=exact', Range:'0-0'})}, 8000)
           .then(function(res){
             var n=parseInt(String(res.headers.get('content-range')||'').split('/')[1],10);
             return isFinite(n)? n+1 : 0;
@@ -1455,9 +1518,12 @@
       regMsg('이미 등록한 최고 점수예요 — 더 높은 점수를 내면 등록할 수 있어요!');
     } else regMsg('이름을 넣고 등록하면 랭킹에 올라가요!');
   }
+  var regPending=false;
   $regBtn.addEventListener('click', function(){
-    $regBtn.disabled=true; regMsg('등록 중…');
+    if(regPending) return;
+    regPending=true; $regBtn.disabled=true; regMsg('등록 중…');
     registerScore($overNick.value, function(err, rk){
+      regPending=false;
       if(err){ regMsg(err,true); $regBtn.disabled=false; return; }
       $regBtn.textContent='✅ 등록 완료'; $overNick.disabled=true;
       regMsg('🎉 '+nickname+' — 현재 '+rk+'위!');
