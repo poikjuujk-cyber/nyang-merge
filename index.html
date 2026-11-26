@@ -560,8 +560,8 @@
     if(!stageEl) return;
     var want=wantedH();
     if(!playStarted && Math.abs(want-H)>4){
-      var dy=want-H; H=want; syncAR();
-      var oldWorld=WORLD; WORLD=worldH(); dy+=WORLD-oldWorld;
+      var oldWorld=WORLD; H=want; syncAR();
+      WORLD=worldH(); var dy=WORLD-oldWorld;   // 바닥 기준 이동량은 ΔWORLD 하나뿐이다
       var all=Composite.allBodies(world).slice(), i, b;
       for(i=0;i<all.length;i++){
         b=all[i];
@@ -1192,7 +1192,8 @@
     for(var f=floaters.length-1;f>=0;f--){ var fl=floaters[f];
       ctx.globalAlpha=Math.max(0,1-fl.t); ctx.font=(fl.big?'bold 22px ':'bold 15px ')+"'Jua',sans-serif";
       ctx.textAlign='center'; ctx.fillStyle=fl.gold?'#f4c542':'#ef7d57'; ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=3;
-      ctx.strokeText(fl.txt,fl.x,fl.y); ctx.fillText(fl.txt,fl.x,fl.y); ctx.globalAlpha=1; }
+      var fy=fl.y-camY;                                   // 월드 → 화면
+      ctx.strokeText(fl.txt,fl.x,fy); ctx.fillText(fl.txt,fl.x,fy); ctx.globalAlpha=1; }
     // 콤보 HUD (좌상단)
     if(combo>=2 && nowR<comboExpire && !over){
       ctx.font="bold 17px 'Jua',sans-serif"; ctx.textAlign='left';
