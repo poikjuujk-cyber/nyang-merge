@@ -1,0 +1,115 @@
+<!doctype html>
+<!-- jelly-arcade 유니버스 입구 — 만든 게임들을 모아서 보여 주는 허브 페이지 -->
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>jelly-arcade — 젤리 오락실</title>
+<meta name="description" content="직접 만든 게임들을 한 곳에 모아 둔 작은 오락실. 지금은 냥냥 머지를 플레이할 수 있어요.">
+<link rel="canonical" href="https://jelly-arcade.pages.dev/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="jelly-arcade">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:title" content="jelly-arcade — 젤리 오락실">
+<meta property="og:description" content="직접 만든 게임들을 한 곳에 모아 둔 작은 오락실.">
+<meta property="og:url" content="https://jelly-arcade.pages.dev/">
+<meta property="og:image" content="https://jelly-arcade.pages.dev/nyang-merge/og.png?v=1">
+<meta property="og:image:secure_url" content="https://jelly-arcade.pages.dev/nyang-merge/og.png?v=1">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="jelly-arcade — 젤리 오락실">
+<meta name="twitter:description" content="직접 만든 게임들을 한 곳에 모아 둔 작은 오락실.">
+<meta name="twitter:image" content="https://jelly-arcade.pages.dev/nyang-merge/og.png?v=1">
+<meta name="theme-color" content="#fbf3e6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#241c15" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="nyang-merge/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="nyang-merge/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Gothic+A1:wght@400;700;800&display=swap">
+<style>
+  :root{
+    --font-display:'Jua', system-ui, sans-serif;
+    --font-body:'Gothic A1', system-ui, -apple-system, sans-serif;
+    --bg:#fbf3e6; --panel:#fff8ec; --fg:#4a3326; --muted:#9b7f66;
+    --accent:#ef7d57; --accent-2:#f4b942; --line:#ead9c2; --shadow:rgba(120,80,40,.14);
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --bg:#241c15; --panel:#302519; --fg:#f2e7d6; --muted:#b39c82;
+    --accent:#ef7d57; --accent-2:#f4b942; --line:#473726; --shadow:rgba(0,0,0,.35);
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#241c15; --panel:#302519; --fg:#f2e7d6; --muted:#b39c82;
+    --accent:#ef7d57; --accent-2:#f4b942; --line:#473726; --shadow:rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
+    font-family:var(--font-body); -webkit-tap-highlight-color:transparent;
+    padding:0 16px max(28px, env(safe-area-inset-bottom,0px));
+    padding-top:max(28px, env(safe-area-inset-top,0px));
+  }
+  .wrap{ width:100%; max-width:720px; margin:0 auto; }
+
+  header{ text-align:center; margin:14px 0 30px; }
+  .logo{ font-family:var(--font-display); font-size:clamp(2.1rem, 9vw, 3rem); line-height:1; letter-spacing:.5px;
+         background:linear-gradient(100deg, var(--accent), var(--accent-2)); -webkit-background-clip:text;
+         background-clip:text; color:transparent; }
+  .tag{ font-size:.82rem; color:var(--muted); margin-top:9px; letter-spacing:.4px; }
+
+  .grid{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:560px){ .grid{ grid-template-columns:1fr 1fr; } }
+
+  .card{ display:flex; gap:14px; align-items:center; text-decoration:none; color:inherit;
+    background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:15px;
+    box-shadow:0 3px 0 var(--shadow); transition:transform .12s ease, box-shadow .12s ease; }
+  .card:hover, .card:focus-visible{ transform:translateY(-2px); box-shadow:0 7px 16px var(--shadow); outline:none; }
+  .card:focus-visible{ outline:3px solid var(--accent-2); outline-offset:3px; }
+  .card:active{ transform:translateY(1px); box-shadow:0 2px 0 var(--shadow); }
+  .card img{ width:60px; height:60px; border-radius:15px; flex:0 0 auto; display:block;
+             background:var(--bg); border:1px solid var(--line); }
+  .card .nm{ font-family:var(--font-display); font-size:1.3rem; line-height:1.15; }
+  .card .ds{ font-size:.78rem; color:var(--muted); margin-top:5px; line-height:1.45; }
+  .card .go{ margin-left:auto; flex:0 0 auto; color:var(--accent); font-size:1.4rem; }
+
+  .card.soon{ opacity:.62; cursor:default; border-style:dashed; box-shadow:none; }
+  .card.soon:hover{ transform:none; box-shadow:none; }
+  .card.soon .ph{ width:60px; height:60px; border-radius:15px; flex:0 0 auto; display:flex;
+    align-items:center; justify-content:center; font-size:1.6rem; background:var(--bg); border:1px dashed var(--line); }
+
+  footer{ margin-top:34px; text-align:center; font-size:.72rem; color:var(--muted); line-height:1.8; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="logo">jelly-arcade</div>
+    <div class="tag">직접 만든 게임을 한 곳에 — 젤리 오락실</div>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="nyang-merge/">
+      <img src="nyang-merge/icon.png" width="60" height="60" alt="">
+      <div>
+        <div class="nm">냥냥 머지</div>
+        <div class="ds">같은 고양이끼리 합쳐서 고등어까지. 한 손으로 즐기는 수박게임</div>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
+    </a>
+
+    <div class="card soon">
+      <div class="ph" aria-hidden="true">🎮</div>
+      <div>
+        <div class="nm">다음 게임</div>
+        <div class="ds">준비 중이에요</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>게임이 하나씩 늘어납니다 🐾</footer>
+</div>
+</html>
