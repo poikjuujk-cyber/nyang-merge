@@ -4,12 +4,13 @@
 // 쿼크 모드는 브라우저마다 동작이 가장 제각각인 경로라, 여기서 표준 모드로 못 박고
 // 카카오톡·SNS 공유 카드용 메타 태그도 함께 끼워 넣는다.
 //
-// 산출물이 두 벌인 이유: canonical·og:url 은 파일에 박히는 절대 주소라 한 파일이 두 주소를
-// 동시에 대표할 수 없다. 그래서 주소마다 사본을 따로 뽑는다.
-//   index.html                  → GitHub Pages (옛 주소). 새 주소가 안정될 때까지 그대로 둔다.
-//   public/nyang-merge/         → Cloudflare Pages (jelly-arcade 유니버스). 출력 폴더가 public.
-// public/ 을 쓰는 이유는 GitHub Pages 의 발행 소스가 루트 또는 /docs 만 가능해서,
-// 루트를 비우면 옛 주소가 404 가 되기 때문이다. 두 호스팅이 서로 다른 폴더를 본다.
+// 산출물이 들어가는 곳: public/nyang-merge/ → Cloudflare Pages (jelly-arcade 유니버스).
+// Cloudflare 프로젝트의 "출력 디렉터리"가 public 이라 그 아래만 배포된다.
+//
+// 저장소 루트의 index.html 은 **이 스크립트가 만들지 않는다.** 손으로 쓴 안내 페이지이고,
+// 옛 GitHub Pages 주소(poikjuujk-cyber.github.io/nyang-merge/)로 들어온 사람을 새 주소로 넘긴다.
+// 그래서 build-web.js 는 루트를 건드리면 안 된다 — 덮어쓰면 옛 링크가 게임을 두 번째 출처에서
+// 다시 띄우게 되고, 세이브·도감이 주소마다 갈라지고 같은 점수가 랭킹에 두 번 올라간다.
 const fs = require('fs');
 const path = require('path');
 
@@ -18,7 +19,6 @@ const DESC = '같은 고양이를 합쳐서 더 큰 고양이로! 아깽이부�
 const ASSETS = ['og.png', 'icon.png'];
 
 const TARGETS = [
-  { out: 'index.html', base: 'https://poikjuujk-cyber.github.io/nyang-merge/', icon: 'icon.png' },
   { out: 'public/nyang-merge/index.html', base: 'https://jelly-arcade.pages.dev/nyang-merge/', icon: 'icon.png' },
 ];
 

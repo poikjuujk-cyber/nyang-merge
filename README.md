@@ -2,7 +2,9 @@
 
 고양이 캐릭터로 만든 수박게임류 머지 퍼즐. 같은 냥이끼리 합쳐서 **고등어(코리안숏헤어)**까지 키우는 게 목표.
 
-**플레이:** https://poikjuujk-cyber.github.io/nyang-merge/
+**플레이:** https://jelly-arcade.pages.dev/nyang-merge/
+
+> 옛 주소 `poikjuujk-cyber.github.io/nyang-merge/` 는 위 주소로 자동 이동합니다.
 
 ## 특징
 
