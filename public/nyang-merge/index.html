@@ -713,27 +713,22 @@
     cur=rndTier(); nxt=rndTier(); canDrop=true; discover(cur,true); drawNext();
   }
 
-  // ---- 냥이 충전(스태미나): 하루 3000회, 쓴 건 10분마다 1회 회복 ----
-  // 하루가 바뀌면 가득 채워 주고, 그 안에서 쓴 횟수는 10분에 하나씩 돌아온다.
+  // ---- 냥이 충전(스태미나): 최대 3000, 10분마다 1개씩 회복 ----
+  // 매일 초기화하지 않는다. 쓰면 그만큼 줄고, 쓴 순간부터 10분에 1개씩 3000 한도까지 돌아온다.
   // 3000은 밸런스가 아니라 어뷰징 천장이다. 잔량이 STAM_LOW 이하로 내려가야 충전 연출이 보인다.
   var STAM_MAX=3000, STAM_MS=600000, STAM_LOW=300;
-  var stam={n:STAM_MAX, t:0, d:''};
-  function stamDay(ms){ var d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+  var stam={n:STAM_MAX, t:0};
   try{
     var _sv=JSON.parse(localStorage.getItem('nyang_stam')||'null');
     if(_sv && typeof _sv.n==='number'){
       stam.n=Math.max(0, Math.min(STAM_MAX, _sv.n|0));
-      stam.t=_sv.t|0; stam.d=String(_sv.d||'');
+      stam.t=_sv.t|0;
     }
   }catch(e){}
   function stamSave(){ try{ localStorage.setItem('nyang_stam', JSON.stringify(stam)); }catch(e){} }
   // 흘러간 시간만큼 충전하고, 이번에 돌아온 개수를 돌려준다(연출용).
   function stamSync(){
-    var now=Date.now(), day=stamDay(now), got=0;
-    if(stam.d!==day){                                  // 날이 바뀌었다 → 가득
-      got=STAM_MAX-stam.n; stam.d=day; stam.n=STAM_MAX; stam.t=now; stamSave();
-      return got;
-    }
+    var now=Date.now(), got=0;
     if(!stam.t || stam.t>now) stam.t=now;              // 시계가 뒤로 간 경우 방어
     if(stam.n>=STAM_MAX){ stam.t=now; return 0; }      // 꽉 차 있으면 타이머를 세워 둔다
     var el=now-stam.t;
@@ -757,7 +752,7 @@
     var got=stamSync();
     if(got>0){                                         // 충전되는 순간을 눈에 보이게
       floaters.push({x:W/2, y:camY+H*0.52, t:0,
-        txt:(got>=10? '🐟 오늘의 냥이가 가득 찼어요!' : '🐟 +'+got+' 충전!'), big:true, gold:true});
+        txt:'🐟 +'+got+' 충전!', big:true, gold:true});
       beep(880, 0.08);
       $stBar.classList.remove('pop'); void $stBar.offsetWidth; $stBar.classList.add('pop');
       updateItemUI();
